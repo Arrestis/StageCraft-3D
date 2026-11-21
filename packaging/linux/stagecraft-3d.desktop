@@ -1,0 +1,8 @@
+[Desktop Entry]
+Type=Application
+Name=Stagecraft 3D
+Comment=Plan and preview theatre sets in 3D
+Exec=stagecraft-3d
+Icon=stagecraft-3d
+Categories=Graphics;3DGraphics;Education;
+Terminal=false

@@ -1,0 +1,60 @@
+# Push in GitHub Desktop = new release.
+#
+# When a push adds a folder releases/v<version>/ (made by packaging\build-all.ps1) and GitHub has
+# no release with that tag yet, this creates the release from the ready-made files in the folder
+# (Windows .msi / portable .zip / .exe, 64- and 32-bit; Linux AppImage / .tar.gz / .deb / .rpm),
+# using RELEASE-NOTES.md as the description, then builds the Mac version and adds it too.
+name: Publish release from releases folder
+
+on:
+  push:
+    branches: [main]
+    paths: ["releases/**"]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  create:
+    name: Create release
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.make.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Create a release for each new releases/v* folder
+        id: make
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          created=""
+          for dir in releases/v*/; do
+            [ -d "$dir" ] || continue
+            tag=$(basename "$dir")
+            if gh release view "$tag" >/dev/null 2>&1; then
+              echo "Release $tag already exists - skipping"
+              continue
+            fi
+            mapfile -t files < <(find "$dir" -maxdepth 1 -type f ! -name 'RELEASE-NOTES.md' | sort)
+            if [ ${#files[@]} -eq 0 ]; then
+              echo "No files in $dir - skipping"
+              continue
+            fi
+            notes="$dir/RELEASE-NOTES.md"
+            [ -f "$notes" ] || { echo "Stagecraft 3D $tag" > /tmp/notes.md; notes=/tmp/notes.md; }
+            echo "Creating release $tag with ${#files[@]} files"
+            gh release create "$tag" "${files[@]}" --target "$GITHUB_SHA" \
+              --title "Stagecraft 3D $tag" --notes-file "$notes"
+            created="$tag"
+          done
+          echo "tag=$created" >> "$GITHUB_OUTPUT"
+
+  macos:
+    name: Add Mac version
+    needs: create
+    if: needs.create.outputs.tag != ''
+    uses: ./.github/workflows/macos.yml
+    with:
+      tag: ${{ needs.create.outputs.tag }}

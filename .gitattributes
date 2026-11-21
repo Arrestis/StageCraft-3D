@@ -1,2 +1,19 @@
 # Auto detect text files and perform LF normalization
 * text=auto
+# Shell scripts and Linux/macOS files must keep Unix line endings
+*.sh text eol=lf
+*.desktop text eol=lf
+*.plist text eol=lf
+# Binary assets
+*.png binary
+*.ico binary
+*.cmd text eol=crlf
+# Release files in releases/ are stored exactly as built
+*.exe binary
+*.msi binary
+*.zip binary
+*.gz binary
+*.deb binary
+*.rpm binary
+*.AppImage binary
+*.dmg binary

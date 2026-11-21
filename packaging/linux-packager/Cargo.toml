@@ -1,0 +1,15 @@
+[package]
+name = "linux-packager"
+version = "0.1.0"
+edition = "2021"
+publish = false
+description = "Builds the Stagecraft 3D Linux packages (.tar.gz, .deb, .rpm, AppImage) on any OS"
+
+[dependencies]
+tar = "0.4"
+flate2 = "1"
+ar = "0.9"
+rpm = { version = "0.30", default-features = false, features = ["payload", "gzip-compression"] }
+backhand = { version = "0.25", default-features = false, features = ["zstd", "gzip"] }
+md-5 = "0.10"
+zstd = "0.13"

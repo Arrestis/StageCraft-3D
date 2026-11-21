@@ -1,0 +1,42 @@
+# Adds the Mac version to a release. The Windows and Linux files are built on a Windows PC
+# and uploaded by "Publish release.cmd"; a Mac app can only be built on a Mac, so GitHub's
+# Mac machine builds it here and attaches the .dmg and .zip to the same release.
+name: Add Mac version to release
+
+on:
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to add the Mac version to (for example v0.3.0)"
+        required: true
+  # Called by publish-release.yml right after it creates a release from the releases/ folder.
+  workflow_call:
+    inputs:
+      tag:
+        type: string
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  macos:
+    name: macOS (universal)
+    runs-on: macos-latest
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.TAG }}
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: x86_64-apple-darwin,aarch64-apple-darwin
+      - name: Build .app, .dmg and zip
+        run: bash packaging/build-macos.sh
+      - name: Attach to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" dist/*.dmg dist/*.zip --clobber --repo "$GITHUB_REPOSITORY"

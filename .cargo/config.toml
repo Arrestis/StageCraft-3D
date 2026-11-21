@@ -1,0 +1,4 @@
+# Build the C runtime into the Windows programs, so no Visual C++ redistributable is needed
+# (and Windows 7 works without extra updates).
+[target.'cfg(all(windows, target_env = "msvc"))']
+rustflags = ["-C", "target-feature=+crt-static"]

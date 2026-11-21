@@ -1,0 +1,68 @@
+<!--
+  Stagecraft 3D Windows installer (WiX Toolset v4/v5).
+  Built by packaging\build-windows.ps1 (and the GitHub release workflow) with
+  "wix build" for arch x64 and x86, passing the Version and ExePath variables.
+-->
+<Wix xmlns="http://wixtoolset.org/schemas/v4/wxs">
+  <Package Name="Stagecraft 3D"
+           Manufacturer="Stagecraft 3D"
+           Version="$(Version)"
+           UpgradeCode="6B4E2A57-3C1D-4F8E-9A0B-5D7C2E1F3A64"
+           Scope="perMachine"
+           Compressed="yes">
+    <SummaryInformation Description="Stagecraft 3D - plan and preview theatre sets in 3D" />
+    <MajorUpgrade DowngradeErrorMessage="A newer version of Stagecraft 3D is already installed." />
+    <MediaTemplate EmbedCab="yes" />
+
+    <Icon Id="AppIcon" SourceFile="assets\icon.ico" />
+    <Property Id="ARPPRODUCTICON" Value="AppIcon" />
+    <Property Id="ARPHELPLINK" Value="https://github.com/Arrestis/StageCraft-3D" />
+
+    <StandardDirectory Id="ProgramFiles6432Folder">
+      <Directory Id="INSTALLFOLDER" Name="Stagecraft 3D" />
+    </StandardDirectory>
+    <StandardDirectory Id="ProgramMenuFolder">
+      <Directory Id="AppMenuFolder" Name="Stagecraft 3D" />
+    </StandardDirectory>
+
+    <ComponentGroup Id="AppFiles" Directory="INSTALLFOLDER">
+      <Component Id="MainExe">
+        <File Id="StagecraftExe" Source="$(ExePath)" Name="Stagecraft3D.exe" KeyPath="yes" />
+      </Component>
+      <Component Id="Readme">
+        <File Source="README.md" Name="README.md" />
+      </Component>
+      <Component Id="License">
+        <File Source="LICENSE" Name="LICENSE.txt" />
+      </Component>
+    </ComponentGroup>
+
+    <Component Id="StartMenuShortcut" Directory="AppMenuFolder">
+      <Shortcut Id="AppShortcut"
+                Name="Stagecraft 3D"
+                Description="Plan and preview theatre sets in 3D"
+                Target="[INSTALLFOLDER]Stagecraft3D.exe"
+                WorkingDirectory="INSTALLFOLDER"
+                Icon="AppIcon" />
+      <RemoveFolder Id="RemoveAppMenuFolder" On="uninstall" />
+      <RegistryValue Root="HKCU" Key="Software\Stagecraft3D" Name="installed" Type="integer" Value="1" KeyPath="yes" />
+    </Component>
+
+    <StandardDirectory Id="DesktopFolder">
+      <Component Id="DesktopShortcut">
+        <Shortcut Id="AppDesktopShortcut"
+                  Name="Stagecraft 3D"
+                  Target="[INSTALLFOLDER]Stagecraft3D.exe"
+                  WorkingDirectory="INSTALLFOLDER"
+                  Icon="AppIcon" />
+        <RegistryValue Root="HKCU" Key="Software\Stagecraft3D" Name="desktop" Type="integer" Value="1" KeyPath="yes" />
+      </Component>
+    </StandardDirectory>
+
+    <Feature Id="Main" Title="Stagecraft 3D" Level="1">
+      <ComponentGroupRef Id="AppFiles" />
+      <ComponentRef Id="StartMenuShortcut" />
+      <ComponentRef Id="DesktopShortcut" />
+    </Feature>
+  </Package>
+</Wix>

@@ -1,0 +1,20 @@
+# Build output (large, recreated by `cargo build`)
+/target/
+# Finished installers and portable builds (attach these to a GitHub Release instead)
+/dist/
+# Test screenshots
+/shots/
+# Downloaded build tools (Zig, AppImage runtime)
+/.tools/
+# Copies of git's own internal files must never be committed
+/COMMIT_EDITMSG
+/HEAD
+/config
+/description
+/index
+/hooks/
+/info/
+/logs/
+/objects/
+/refs/
+/Stagecraft/
