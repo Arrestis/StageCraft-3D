@@ -403,7 +403,7 @@ impl App {
             let s = self.state_mut();
             let d = s.battens.get(idx).map(|b| b.dist + 0.3).unwrap_or(1.0);
             let n = s.battens.len() + 1;
-            s.battens.push(Batten { name: format!("Line {n}"), kind: BattenKind::Scenery, dist: d, height: max, goods_h: 0.0, color: [80, 80, 80], open: 1.0, visible: true });
+            s.battens.push(Batten { name: format!("Line {n}"), kind: BattenKind::Scenery, dist: d, height: max, goods_h: 0.0, color: [80, 80, 80], open: 1.0, visible: true, opening: 0.0, border_h: 0.0 });
             self.sel = OBJ_BATTEN + (self.state().battens.len() - 1) as u32;
         }
     }

@@ -14,7 +14,12 @@ fly bars in and out, light the scene and check sightlines before anything is bui
   - The *Armidale Playhouse* preset follows the venue's as-built floor plan: an 8.3 m x 3.75 m
     open end stage on a 450 mm riser, a 3.2 m ceiling sloping to 2.3 m on stage left, about
     120 raked seats with a house-right aisle, and its real lighting positions.
-  - *Capitol Theatre Tamworth* uses the published technical specification.
+  - *Capitol Theatre Tamworth* uses the published technical specification, including its 17-line
+    hanging plot, drapery sizes and lighting positions.
+  - *TAS Hoskins Centre* follows its technical dossier: 12 m x 7.65 m proscenium, four lighting
+    trusses, movable masking tabs, a 7.5 m x 2.5 m pit and 230 seats with side galleries.
+  - *Genesian* (Rozelle and Kent Street) and *Lazenby Hall* take their room finishes, galleries,
+    aisles and screens from venue photos.
   - Where no published data was found, the figures are estimates and the app says so.
 - **3D stage** – deck with grid and metre/foot markings, proscenium or open end stage, wings,
   crossover, cyclorama, house steps, auditorium with raked seating.

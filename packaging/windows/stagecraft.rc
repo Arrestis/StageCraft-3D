@@ -3,8 +3,8 @@
 1 ICON "../../assets/icon.ico"
 
 VS_VERSION_INFO VERSIONINFO
-FILEVERSION 0,4,0,0
-PRODUCTVERSION 0,4,0,0
+FILEVERSION 0,4,1,0
+PRODUCTVERSION 0,4,1,0
 FILEOS VOS_NT_WINDOWS32
 FILETYPE VFT_APP
 BEGIN
@@ -13,9 +13,9 @@ BEGIN
     BLOCK "040904B0"
     BEGIN
       VALUE "FileDescription", "Stagecraft 3D - theatre set design"
-      VALUE "FileVersion", "0.4.0"
+      VALUE "FileVersion", "0.4.1"
       VALUE "ProductName", "Stagecraft 3D"
-      VALUE "ProductVersion", "0.4.0"
+      VALUE "ProductVersion", "0.4.1"
       VALUE "OriginalFilename", "stagecraft_3d.exe"
       VALUE "InternalName", "stagecraft_3d"
     END

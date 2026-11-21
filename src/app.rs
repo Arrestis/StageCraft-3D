@@ -381,9 +381,16 @@ impl App {
         let goal = match p {
             CamPreset::Director => {
                 let rows = v.rows() as f32;
-                let r = (rows * 0.4).floor().min(12.0);
-                let z = v.house_start_z() + r * 0.92 + 0.6;
-                let y = -sh + r * v.house_rise_per_row + 1.15;
+                // Sit far enough back to see the whole opening (and a little of the room)
+                // across the view, like a director at the production desk.
+                let hfov = 2.0 * ((23.0f32).to_radians().tan() * aspect.max(0.5)).atan();
+                let need = (v.pros_width + 2.5) / (2.0 * (hfov * 0.5).tan());
+                let mut r = (rows * 0.4).floor().min(12.0);
+                while r < rows - 1.0 && v.house_start_z() + v.row_offset(r as u32) + 0.6 < need {
+                    r += 1.0;
+                }
+                let z = v.house_start_z() + v.row_offset(r as u32) + 0.6;
+                let y = -sh + v.row_rise(r as u32) + 1.15;
                 let tz = -depth * 0.38;
                 Orbit::from_eye(v3(0.0, y, z), v3(0.0, 1.5 + v.deck_y(tz), tz), 46.0)
             }

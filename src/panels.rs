@@ -327,6 +327,28 @@ impl App {
                 changed |= ui.selectable_value(&mut v.kind, VenueKind::Proscenium, "Proscenium").changed();
                 changed |= ui.selectable_value(&mut v.kind, VenueKind::BlackBox, "Black box").changed();
             });
+            ui.horizontal(|ui| {
+                ui.label("Room look");
+                let cur = if v.dark_room && v.look == RoomLook::Classic { RoomLook::Studio } else { v.look };
+                egui::ComboBox::from_id_salt("room_look").selected_text(cur.label()).show_ui(ui, |ui| {
+                    for l in RoomLook::ALL {
+                        if ui.selectable_label(cur == l, l.label()).clicked() {
+                            v.look = l;
+                            v.dark_room = l == RoomLook::Studio;
+                            changed = true;
+                        }
+                    }
+                });
+            });
+            changed |= ui.checkbox(&mut v.side_galleries, "Side galleries").changed();
+            changed |= ui.checkbox(&mut v.rear_gallery, "Rear gallery / balcony").changed();
+            changed |= ui.checkbox(&mut v.aisles_both_sides, "Aisle stairs on both sides").changed();
+            ui.horizontal(|ui| {
+                ui.label("Cross aisle after row");
+                changed |= ui.add(egui::DragValue::new(&mut v.cross_aisle_after).range(0..=40)).changed();
+                ui.label(RichText::new("(0 = none)").size(11.0).color(Color32::from_gray(150)));
+            });
+            changed |= ui.checkbox(&mut v.side_screens, "Screens beside the stage").changed();
         });
         if changed {
             if !(v.key.ends_with("_edited") || v.key == "custom") {

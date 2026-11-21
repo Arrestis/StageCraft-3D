@@ -166,19 +166,19 @@ pub fn build(pr: &Project, d: &Display, o: &BuildOpts) -> (Geo, Vec<Label>) {
     let house_end = house_start + v.house_depth();
     let outer = hw.max(house_hw);
 
-    let dark = v.dark_room;
+    let pal = v.palette();
     let open_end = v.open_end_stage && !bb;
-    let deck_col = if bb || dark { [34, 34, 38] } else { [66, 58, 52] };
+    let deck_col = if bb { [34, 34, 38] } else { pal.deck };
     let deck_m = g.mat(deck_col, 0.12, F_DECK_GRID);
-    let wall_m = g.mat(if dark { [54, 54, 58] } else { [46, 45, 50] }, 0.0, 0);
+    let wall_m = g.mat(pal.stage_wall, 0.0, 0);
     let black_m = g.mat([22, 22, 26], 0.0, 0);
-    let pros_m = g.mat([92, 30, 38], 0.05, F_HOUSE);
-    let trim_m = g.mat([168, 134, 72], 0.4, F_HOUSE);
-    let house_wall_m = g.mat(if dark { [96, 96, 100] } else { [74, 46, 50] }, 0.0, F_HOUSE);
-    let carpet_m = g.mat(if dark { [40, 38, 42] } else { [58, 30, 34] }, 0.0, F_HOUSE);
-    let seat_m = g.mat(if dark { [176, 30, 36] } else { [128, 26, 36] }, 0.05, F_HOUSE);
-    let riser_m = g.mat(if dark { [46, 44, 48] } else { [44, 36, 38] }, 0.0, F_HOUSE);
-    let tread_m = g.mat([164, 122, 74], 0.15, F_HOUSE);
+    let pros_m = g.mat(pal.pros, 0.05, F_HOUSE);
+    let trim_m = g.mat(pal.trim, 0.4, F_HOUSE);
+    let house_wall_m = g.mat(pal.house_wall, 0.0, F_HOUSE);
+    let carpet_m = g.mat(pal.carpet, 0.0, F_HOUSE);
+    let seat_m = g.mat(pal.seat, 0.05, F_HOUSE);
+    let riser_m = g.mat(pal.riser, 0.0, F_HOUSE);
+    let tread_m = g.mat(pal.tread, 0.15, F_HOUSE);
     let steel_m = g.mat([90, 92, 98], 0.4, 0);
 
     // ---------------- Stage deck ----------------
@@ -306,6 +306,32 @@ pub fn build(pr: &Project, d: &Display, o: &BuildOpts) -> (Geo, Vec<Label>) {
         world_box(&mut g, v3(-pw - t, 0.0, pz1), v3(-pw, ph + t, pz1 + 0.06), trim_m, 0);
         world_box(&mut g, v3(pw, 0.0, pz1), v3(pw + t, ph + t, pz1 + 0.06), trim_m, 0);
         world_box(&mut g, v3(-pw - t, ph, pz1), v3(pw + t, ph + t, pz1 + 0.06), trim_m, 0);
+        if pal.wainscot.is_some() && !o.plan_view {
+            // Panelled proscenium: a grid of raised panels on the house face.
+            let panel_m = g.mat(pal.trim, 0.25, F_HOUSE);
+            let pz = pz1 + 0.07;
+            let mut x = pw + 0.45;
+            while x + 0.7 < outer {
+                let mut y = -sh + 0.3;
+                while y + 0.9 < ptop - 0.2 {
+                    for sx in [-1.0f32, 1.0] {
+                        let (a, b) = if sx > 0.0 { (x, x + 0.7) } else { (-x - 0.7, -x) };
+                        world_box(&mut g, v3(a, y, pz - 0.03), v3(b, y + 0.9, pz), panel_m, 0);
+                    }
+                    y += 1.1;
+                }
+                x += 0.9;
+            }
+        }
+        if v.side_screens && !o.plan_view {
+            // Projection screens on the proscenium wall either side of the opening.
+            let scr_m = g.mat_emissive([150, 175, 150], 0.45, F_HOUSE);
+            let sw = ((outer - pw) * 0.6).clamp(1.5, 4.0);
+            for sx in [-1.0f32, 1.0] {
+                let cx = sx * (pw + (outer - pw) * 0.5);
+                world_box(&mut g, v3(cx - sw * 0.5, ph * 0.35, pz1 + 0.06), v3(cx + sw * 0.5, ph * 0.35 + sw * 0.56, pz1 + 0.12), scr_m, 0);
+            }
+        }
         // Fly tower grid and gallery.
         if v.has_fly_tower() && !o.plan_view && o.show_rigging {
             let gy = v.grid_height;
@@ -426,15 +452,59 @@ pub fn build(pr: &Project, d: &Display, o: &BuildOpts) -> (Geo, Vec<Label>) {
             g.quad_one_sided(v3(-house_hw, floor_y, 0.45), v3(-house_hw, floor_y, house_end), v3(-house_hw, ceil, house_end), v3(-house_hw, ceil, 0.45), v3(1.0, 0.0, 0.0), house_wall_m, 0);
             g.quad_one_sided(v3(house_hw, floor_y, 0.45), v3(house_hw, floor_y, house_end), v3(house_hw, ceil, house_end), v3(house_hw, ceil, 0.45), v3(-1.0, 0.0, 0.0), house_wall_m, 0);
             g.quad_one_sided(v3(-house_hw, floor_y, house_end), v3(house_hw, floor_y, house_end), v3(house_hw, ceil, house_end), v3(-house_hw, ceil, house_end), v3(0.0, 0.0, -1.0), house_wall_m, 0);
+            let back_y = floor_y + v.row_rise(v.rows().saturating_sub(1));
+            let row_end = house_start + v.row_offset(v.rows());
+            if !o.plan_view {
+                // Panelling / dado rail following the rake.
+                let band = |g: &mut Geo, lo: f32, hi: f32, m: u32| {
+                    for sx in [-1.0f32, 1.0] {
+                        let x = sx * (house_hw - 0.02);
+                        let n = v3(-sx, 0.0, 0.0);
+                        g.quad_one_sided(v3(x, floor_y + lo, 0.45), v3(x, floor_y + lo, house_start), v3(x, floor_y + hi, house_start), v3(x, floor_y + hi, 0.45), n, m, 0);
+                        g.quad_one_sided(v3(x, floor_y + lo, house_start), v3(x, back_y + lo, row_end), v3(x, back_y + hi, row_end), v3(x, floor_y + hi, house_start), n, m, 0);
+                        g.quad_one_sided(v3(x, back_y + lo, row_end), v3(x, back_y + lo, house_end), v3(x, back_y + hi, house_end), v3(x, back_y + hi, row_end), n, m, 0);
+                    }
+                };
+                if let Some(c) = pal.wainscot {
+                    let m = g.mat(c, 0.2, F_HOUSE);
+                    band(&mut g, 0.0, 1.4, m);
+                }
+                if let Some(c) = pal.rail {
+                    let m = g.mat(c, 0.45, F_HOUSE);
+                    band(&mut g, 1.05, 1.17, m);
+                    // Gold edge round the proscenium wall too.
+                    if !open_end {
+                        world_box(&mut g, v3(-outer - 0.3, ph + 1.15, 0.45), v3(outer + 0.3, ph + 1.25, 0.5), m, 0);
+                    }
+                }
+                if let Some(c) = pal.ceiling {
+                    // Ceiling, seen only from below (house views); open from above.
+                    let m = g.mat(c, 0.05, F_HOUSE);
+                    g.quad_one_sided(v3(-house_hw, ceil, 0.45), v3(house_hw, ceil, 0.45), v3(house_hw, ceil, house_end), v3(-house_hw, ceil, house_end), v3(0.0, -1.0, 0.0), m, 0);
+                    // Roof trusses / slats as beams across the room.
+                    let beam_m = g.mat([c[0].saturating_sub(30), c[1].saturating_sub(24), c[2].saturating_sub(18)], 0.1, F_HOUSE);
+                    let step = if v.look == RoomLook::TimberHall { 1.0 } else { 2.6 };
+                    let mut z = 1.2;
+                    while z < house_end - 0.3 {
+                        world_box(&mut g, v3(-house_hw, ceil - 0.35, z - 0.12), v3(house_hw, ceil - 0.02, z + 0.12), beam_m, 0);
+                        z += step;
+                    }
+                }
+            }
         }
         let rows = v.rows();
         let rise = v.house_rise_per_row;
         let inner = house_hw - 1.1;
+        let separate = (v.side_aisle || v.aisles_both_sides || pal.separate_seats) && !bb;
         let blocks: Vec<(f32, f32)> = if v.side_aisle && !bb {
             // One seating block against house left, aisle stairs on house right.
             let w = (v.seats_per_row() as f32 * 0.52).min(house_hw * 2.0 - 1.0);
             let x0 = -house_hw + 0.3;
             vec![(x0, x0 + w)]
+        } else if v.aisles_both_sides && !bb {
+            // One central block with aisle stairs down both sides.
+            let w = (v.seats_per_row() as f32 * 0.52).min(house_hw * 2.0 - 2.2);
+            vec![(-w * 0.5, w * 0.5)]
         } else if inner * 2.0 > 12.0 {
             let a = inner / 3.0;
             vec![(-inner, -a - 0.55), (-a + 0.55, a - 0.55), (a + 0.55, inner)]
@@ -442,16 +512,21 @@ pub fn build(pr: &Project, d: &Display, o: &BuildOpts) -> (Geo, Vec<Label>) {
             vec![(-inner, -0.55), (0.55, inner)]
         };
         for r in 0..rows {
-            let z = house_start + r as f32 * 0.92;
-            let y = floor_y + r as f32 * rise;
+            let z = house_start + v.row_offset(r);
+            let y = floor_y + v.row_rise(r);
+            // A cross aisle in front of this row: extend its platform forward.
+            let zf = if v.cross_aisle_after > 0 && r == v.cross_aisle_after { z - 1.2 } else { z };
             if rise > 0.0 {
-                world_box(&mut g, v3(-house_hw, floor_y, z), v3(house_hw, y, z + 0.92), riser_m, 0);
+                world_box(&mut g, v3(-house_hw, floor_y, zf), v3(house_hw, y, z + 0.92), riser_m, 0);
+                if zf < z {
+                    g.quad(v3(-house_hw, y + 0.005, zf), v3(house_hw, y + 0.005, zf), v3(house_hw, y + 0.005, z), v3(-house_hw, y + 0.005, z), carpet_m, 0);
+                }
             } else {
-                g.quad(v3(-house_hw, y, z), v3(house_hw, y, z), v3(house_hw, y, z + 0.92), v3(-house_hw, y, z + 0.92), carpet_m, 0);
+                g.quad(v3(-house_hw, y, zf), v3(house_hw, y, zf), v3(house_hw, y, z + 0.92), v3(-house_hw, y, z + 0.92), carpet_m, 0);
             }
             if !o.plan_view || true {
                 for &(x0, x1) in &blocks {
-                    if v.side_aisle {
+                    if separate {
                         // Individual seats with a dark frame, like the venue's red tip-up seats.
                         let n = ((x1 - x0) / 0.52).round().max(1.0) as usize;
                         let sw = (x1 - x0) / n as f32;
@@ -469,28 +544,108 @@ pub fn build(pr: &Project, d: &Display, o: &BuildOpts) -> (Geo, Vec<Label>) {
                 }
             }
         }
+        let rows_end = house_start + v.row_offset(rows);
+        let back_y = floor_y + v.row_rise(rows.saturating_sub(1));
         if rise > 0.0 {
-            let y = floor_y + (rows as f32 - 1.0) * rise;
-            g.quad(v3(-house_hw, y, house_start + rows as f32 * 0.92), v3(house_hw, y, house_start + rows as f32 * 0.92), v3(house_hw, y, house_end), v3(-house_hw, y, house_end), carpet_m, 0);
+            g.quad(v3(-house_hw, back_y, rows_end), v3(house_hw, back_y, rows_end), v3(house_hw, back_y, house_end), v3(-house_hw, back_y, house_end), carpet_m, 0);
         }
-        if v.side_aisle && !bb && rise > 0.0 && !o.plan_view {
-            // Aisle handrail up the house-right stairs.
-            let x = house_hw - 0.12;
-            let z0 = house_start;
-            let z1 = house_start + rows as f32 * 0.92;
-            // Timber aisle stairs: two treads per row.
-            let ax0 = blocks.last().map(|b| b.1 + 0.1).unwrap_or(house_hw - 1.4);
-            for r in 0..rows {
-                let z = house_start + r as f32 * 0.92;
-                let y = floor_y + r as f32 * rise;
-                world_box(&mut g, v3(ax0, y - rise * 0.5, z - 0.46), v3(house_hw, y - rise * 0.5 + 0.01, z), tread_m, 0);
-                world_box(&mut g, v3(ax0, y, z), v3(house_hw, y + 0.01, z + 0.92), tread_m, 0);
+        if (v.side_aisle || v.aisles_both_sides) && !bb && rise > 0.0 && !o.plan_view {
+            // Aisle stairs (two treads per row) with a handrail along the wall.
+            let mut aisles: Vec<(f32, f32, f32)> = Vec::new();
+            if let Some(b) = blocks.last() {
+                aisles.push((b.1 + 0.1, house_hw, house_hw - 0.12));
             }
-            g.line(v3(x, floor_y + 0.9, z0), v3(x, floor_y + (rows as f32 - 1.0) * rise + 0.9, z1), [190, 190, 196, 255]);
+            if v.aisles_both_sides {
+                if let Some(b) = blocks.first() {
+                    aisles.push((-house_hw, b.0 - 0.1, -house_hw + 0.12));
+                }
+            }
+            let nose_m = g.mat(pal.trim, 0.3, F_HOUSE);
+            for &(ax0, ax1, rail_x) in &aisles {
+                for r in 0..rows {
+                    let z = house_start + v.row_offset(r);
+                    let y = floor_y + v.row_rise(r);
+                    world_box(&mut g, v3(ax0, y - rise * 0.5, z - 0.46), v3(ax1, y - rise * 0.5 + 0.01, z), tread_m, 0);
+                    world_box(&mut g, v3(ax0, y, z), v3(ax1, y + 0.01, z + 0.92), tread_m, 0);
+                    if v.aisles_both_sides {
+                        // Carpeted risers with a gold nosing on each step.
+                        world_box(&mut g, v3(ax0, y - rise * 0.5, z - 0.47), v3(ax1, y - rise * 0.5 + 0.03, z - 0.44), nose_m, 0);
+                        world_box(&mut g, v3(ax0, y, z - 0.01), v3(ax1, y + 0.03, z + 0.02), nose_m, 0);
+                    }
+                }
+                g.line(v3(rail_x, floor_y + 0.9, house_start), v3(rail_x, back_y + 0.9, rows_end), [190, 190, 196, 255]);
+                if v.aisles_both_sides {
+                    // Inner handrail beside the seats.
+                    let ix = if rail_x > 0.0 { ax0 + 0.05 } else { ax1 - 0.05 };
+                    g.line(v3(ix, floor_y + 0.9, house_start), v3(ix, back_y + 0.9, rows_end), [210, 180, 110, 255]);
+                }
+            }
+        }
+        if v.side_galleries && !bb && !o.plan_view {
+            // Raised side galleries along both house walls, two seats deep, with a balustrade.
+            let gw = 1.3;
+            let z0 = house_start + 0.4;
+            let z1 = (rows_end - 0.4).max(z0 + 2.0);
+            let gy = (floor_y + v.row_rise(rows / 3) + 2.6).max(back_y + 1.3);
+            let deck_m2 = g.mat(pal.riser, 0.05, F_HOUSE);
+            let bal_m = g.mat(pal.house_wall, 0.05, F_HOUSE);
+            for sx in [-1.0f32, 1.0] {
+                let (xa, xb) = if sx > 0.0 { (house_hw - gw, house_hw) } else { (-house_hw, -house_hw + gw) };
+                world_box(&mut g, v3(xa, gy - 0.25, z0), v3(xb, gy, z1), deck_m2, 0);
+                let inner_x = if sx > 0.0 { xa } else { xb };
+                world_box(&mut g, v3(inner_x - 0.04, gy, z0), v3(inner_x + 0.04, gy + 0.95, z1), bal_m, 0);
+                let mut z = z0 + 0.2;
+                while z + 0.6 < z1 {
+                    for k in 0..2 {
+                        let a = xa + 0.1 + k as f32 * 0.58;
+                        let b = a + 0.5;
+                        world_box(&mut g, v3(a, gy + 0.2, z), v3(b, gy + 0.45, z + 0.45), seat_m, 0);
+                        world_box(&mut g, v3(a, gy + 0.3, z + 0.42), v3(b, gy + 0.9, z + 0.55), seat_m, 0);
+                    }
+                    z += 0.9;
+                }
+            }
+            if o.show_labels {
+                labels.push(Label { pos: v3(house_hw - 0.6, gy + 1.1, (z0 + z1) * 0.5), text: "Side gallery".into(), color: Color32::from_gray(170) });
+            }
+        }
+        if v.rear_gallery && !bb && !o.plan_view {
+            // A gallery / balcony over the back rows.
+            let gd = 3.4;
+            let z0 = house_end - gd;
+            let gy = back_y + 2.7;
+            let deck_m2 = g.mat(pal.riser, 0.05, F_HOUSE);
+            let front_m = g.mat(if pal.wainscot.is_some() { pal.trim } else { pal.house_wall }, 0.1, F_HOUSE);
+            world_box(&mut g, v3(-house_hw, gy - 0.3, z0), v3(house_hw, gy, house_end), deck_m2, 0);
+            world_box(&mut g, v3(-house_hw, gy - 0.3, z0 - 0.06), v3(house_hw, gy + 0.95, z0), front_m, 0);
+            if let Some(c) = pal.rail {
+                let m = g.mat(c, 0.45, F_HOUSE);
+                world_box(&mut g, v3(-house_hw, gy + 0.95, z0 - 0.08), v3(house_hw, gy + 1.02, z0 + 0.02), m, 0);
+            }
+            for row in 0..3 {
+                let z = z0 + 0.3 + row as f32 * 0.95;
+                let y = gy + row as f32 * 0.3;
+                if row > 0 {
+                    world_box(&mut g, v3(-house_hw, gy, z - 0.1), v3(house_hw, y, z + 0.85), deck_m2, 0);
+                }
+                world_box(&mut g, v3(-house_hw + 0.6, y + 0.2, z + 0.1), v3(house_hw - 0.6, y + 0.45, z + 0.55), seat_m, 0);
+                world_box(&mut g, v3(-house_hw + 0.6, y + 0.3, z + 0.52), v3(house_hw - 0.6, y + 0.9, z + 0.64), seat_m, 0);
+            }
+            if o.show_labels {
+                labels.push(Label { pos: v3(0.0, gy + 1.3, z0), text: "Rear gallery".into(), color: Color32::from_gray(170) });
+            }
+        }
+        if v.cross_aisle_after > 0 && v.cross_aisle_after < rows && o.show_labels {
+            let r = v.cross_aisle_after;
+            labels.push(Label {
+                pos: v3(house_hw * 0.55, floor_y + v.row_rise(r) + 0.1, house_start + v.row_offset(r) - 0.6),
+                text: "cross aisle".into(),
+                color: Color32::from_gray(160),
+            });
         }
         if v.control_box && !bb {
             // Control box (bio box) across the back of the house, behind a window.
-            let y = floor_y + (rows as f32 - 1.0).max(0.0) * rise;
+            let y = back_y;
             let cb_m = g.mat([60, 60, 64], 0.0, F_HOUSE);
             let win_m = g.mat_emissive([90, 120, 140], 0.25, F_HOUSE);
             let z0 = house_end - 0.6;
@@ -506,7 +661,7 @@ pub fn build(pr: &Project, d: &Display, o: &BuildOpts) -> (Geo, Vec<Label>) {
         }
         if o.show_labels {
             labels.push(Label {
-                pos: v3(0.0, floor_y + 0.2, house_start + rows as f32 * 0.92 * 0.5),
+                pos: v3(0.0, floor_y + 0.2, house_start + v.row_offset(rows) * 0.5),
                 text: format!("Auditorium · {} seats", v.capacity),
                 color: Color32::from_rgb(230, 200, 200),
             });
@@ -521,7 +676,7 @@ pub fn build(pr: &Project, d: &Display, o: &BuildOpts) -> (Geo, Vec<Label>) {
         if v.has_pit {
             sx = sx.max(v.pit_width * 0.5 + 0.7);
         }
-        let step_m = g.mat(if dark { [30, 30, 34] } else { [54, 48, 44] }, 0.05, 0);
+        let step_m = g.mat(pal.steps, 0.05, 0);
         let sides: &[f32] = if v.side_aisle { &[1.0] } else { &[-1.0, 1.0] };
         if v.side_aisle {
             sx = hw - 0.7;
@@ -602,20 +757,26 @@ pub fn build(pr: &Project, d: &Display, o: &BuildOpts) -> (Geo, Vec<Label>) {
                     g.quad(v3(-span, ybot, z), v3(span, ybot, z), v3(span, h, z), v3(-span, h, z), goods_m, obj);
                 }
                 BattenKind::Legs | BattenKind::LegsAndBorder => {
-                    let lw = 1.4;
-                    let inner = pw - 0.25;
+                    let inner = if b.opening > 0.1 { b.opening * 0.5 } else { pw - 0.25 };
+                    let lw = if b.opening > 0.1 { (hw - inner).clamp(0.6, 3.0) } else { 1.4 };
                     for side in [-1.0f32, 1.0] {
                         let x0 = side * inner;
                         let x1 = side * (inner + lw);
                         g.quad(v3(x0, ybot, z), v3(x1, ybot, z), v3(x1, h, z), v3(x0, h, z), goods_m, obj);
                     }
                     if b.kind == BattenKind::LegsAndBorder {
-                        let bh = if v.has_fly_tower() { 1.6 } else { 0.8 };
+                        let bh = if b.border_h > 0.05 { b.border_h } else if v.has_fly_tower() { 1.6 } else { 0.8 };
                         g.quad(v3(-span, h - bh, z + 0.08), v3(span, h - bh, z + 0.08), v3(span, h, z + 0.08), v3(-span, h, z + 0.08), goods_m, obj);
                     }
                 }
                 BattenKind::Drop | BattenKind::Cyclorama => {
-                    let sp = if b.kind == BattenKind::Cyclorama { span + 0.5 } else { span };
+                    let sp = if b.opening > 0.1 {
+                        b.opening * 0.5
+                    } else if b.kind == BattenKind::Cyclorama {
+                        span + 0.5
+                    } else {
+                        span
+                    };
                     // A few vertical strips so lighting can vary across it.
                     let strips = 6;
                     for k in 0..strips {
@@ -678,7 +839,12 @@ pub fn build(pr: &Project, d: &Display, o: &BuildOpts) -> (Geo, Vec<Label>) {
             tube(&mut g, pos - dir * (len * 0.3), pos + dir * (len * 0.7), rad, 8, body_m, obj, Some(lens_m));
         }
         if let LightMount::Fixed { pos: fp, position_name } = &l.mount {
-            if position_name.contains("boom") {
+            if position_name.contains("house wall") && !o.plan_view {
+                // Perch / box boom: a vertical pipe on the auditorium side wall.
+                let pm = g.mat([50, 50, 56], 0.3, 0);
+                let y0 = crate::venues::house_floor_at(v, fp[2]) + 1.5;
+                tube(&mut g, v3(fp[0], y0.min(fp[1] - 0.5), fp[2]), v3(fp[0], fp[1] + 0.6, fp[2]), 0.03, 6, pm, 0, None);
+            } else if position_name.contains("boom") {
                 g.line(v3(fp[0], v.deck_y(fp[2]), fp[2]), v3(fp[0], fp[1] + 0.6, fp[2]), [150, 150, 160, 255]);
                 let pm = g.mat([50, 50, 56], 0.3, 0);
                 world_box(&mut g, v3(fp[0] - 0.25, v.deck_y(fp[2]), fp[2] - 0.25), v3(fp[0] + 0.25, v.deck_y(fp[2]) + 0.04, fp[2] + 0.25), pm, 0);
@@ -687,7 +853,12 @@ pub fn build(pr: &Project, d: &Display, o: &BuildOpts) -> (Geo, Vec<Label>) {
             if position_name.contains("FOH") && !foh_drawn.iter().any(|z| (z - fp[2]).abs() < 0.05) && !o.plan_view {
                 foh_drawn.push(fp[2]);
                 let y = fp[1] + 0.35;
-                if position_name.contains("bar") {
+                if position_name.contains("gallery") {
+                    // Two parallel bars along a lighting gallery.
+                    for dz in [-0.3f32, 0.3] {
+                        world_box(&mut g, v3(-house_hw + 0.15, y - 0.05, fp[2] + dz - 0.04), v3(house_hw - 0.15, y + 0.03, fp[2] + dz + 0.04), steel_m, 0);
+                    }
+                } else if position_name.contains("bar") {
                     // A plain lighting bar hung under the ceiling.
                     world_box(&mut g, v3(-house_hw + 0.15, y - 0.05, fp[2] - 0.04), v3(house_hw - 0.15, y + 0.03, fp[2] + 0.04), steel_m, 0);
                 } else {

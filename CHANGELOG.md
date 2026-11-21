@@ -1,5 +1,21 @@
 # Changelog
 
+## v0.4.1 – venues from their own documents
+
+- **TAS Hoskins Centre** rebuilt from its technical specifications: 12 m x 7.65 m proscenium on a
+  12.2 m x 7.35 m stage, four lighting trusses (two motorised), movable masking tabs, a 7.5 m x
+  2.5 m pit, 230 seats with East and West side galleries, and its FOH gallery, perches and booms.
+- **Capitol Theatre Tamworth** now hangs its real 17-line hanging plot: gold house curtain, false
+  proscenium, legs and borders at 4.7 m x 10 m, four LX bars, two sets of black tabs and the white
+  cyc; 402 seats with the centre cross aisle; FOH bridge, perches and box booms on the side walls.
+- **Genesian Theatre**: Rozelle gets its teal-and-gold room, light timber proscenium and steep
+  seating with carpeted aisle stairs both sides; the old Kent Street church gets oak panelling,
+  a timber roof, red velvet seats and its rear gallery.
+- **Lazenby Hall** gets its timber hall look, side gallery and screens beside the stage; the
+  benchmark house gets red and gilt with a balcony.
+- New Venue settings: room look, side galleries, rear gallery, aisle stairs on both sides, cross
+  aisle and screens. The Director view now sits far enough back to see the whole opening.
+
 ## v0.4.0 – new home: StageCraft-3D
 
 - New app icon (the project's donkey-head artwork) on every system.

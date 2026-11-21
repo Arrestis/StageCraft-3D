@@ -93,9 +93,191 @@ pub struct Venue {
     /// Sound, lighting and comms equipment in the venue.
     #[serde(default)]
     pub tech_notes: String,
+    /// Colours and finishes of the room.
+    #[serde(default)]
+    pub look: RoomLook,
+    /// Raised side galleries (balconies) along both house walls.
+    #[serde(default)]
+    pub side_galleries: bool,
+    /// A balcony / gallery across the back of the house.
+    #[serde(default)]
+    pub rear_gallery: bool,
+    /// Aisle stairs on both sides of one central seating block.
+    #[serde(default)]
+    pub aisles_both_sides: bool,
+    /// A cross aisle after this many rows (0 = none).
+    #[serde(default)]
+    pub cross_aisle_after: u32,
+    /// Front-of-house lighting bridge / gallery, distance from the setting line (0 = automatic).
+    #[serde(default)]
+    pub foh_dist: f32,
+    /// Side-wall perch positions near the stage, distance from the setting line (0 = none).
+    #[serde(default)]
+    pub perch_dist: f32,
+    /// Side-wall FOH booms further back in the house, distance from the setting line (0 = none).
+    #[serde(default)]
+    pub foh_boom_dist: f32,
+    /// Projection screens either side of the stage opening.
+    #[serde(default)]
+    pub side_screens: bool,
+}
+
+/// The finishes of a room: walls, proscenium, seats and floor.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub enum RoomLook {
+    /// Maroon walls, red seats and a gilded proscenium.
+    #[default]
+    Classic,
+    /// Black deck, charcoal walls, grey timber house (studio).
+    Studio,
+    /// Converted church: dark oak panelling, cream walls, timber roof, red velvet seats.
+    TimberChurch,
+    /// Teal walls with gold trim, light timber proscenium, red-carpeted aisle stairs.
+    TealGold,
+    /// Large hall: timber walls and slatted ceiling, black-draped stage, dark seats.
+    TimberHall,
+    /// Grand house: deep red and gold.
+    RedGilt,
+}
+
+impl RoomLook {
+    pub const ALL: [RoomLook; 6] = [
+        RoomLook::Classic,
+        RoomLook::Studio,
+        RoomLook::TimberChurch,
+        RoomLook::TealGold,
+        RoomLook::TimberHall,
+        RoomLook::RedGilt,
+    ];
+    pub fn label(self) -> &'static str {
+        match self {
+            RoomLook::Classic => "Classic (maroon & gold)",
+            RoomLook::Studio => "Studio (black & charcoal)",
+            RoomLook::TimberChurch => "Converted church (oak panels)",
+            RoomLook::TealGold => "Teal & gold",
+            RoomLook::TimberHall => "Timber hall",
+            RoomLook::RedGilt => "Grand red & gilt",
+        }
+    }
+}
+
+/// Colours used to draw a room.
+pub struct Palette {
+    pub deck: [u8; 3],
+    pub stage_wall: [u8; 3],
+    pub pros: [u8; 3],
+    pub trim: [u8; 3],
+    pub house_wall: [u8; 3],
+    /// Lower wall panelling up to 1.4 m.
+    pub wainscot: Option<[u8; 3]>,
+    /// A thin rail along the house walls.
+    pub rail: Option<[u8; 3]>,
+    pub carpet: [u8; 3],
+    pub seat: [u8; 3],
+    pub riser: [u8; 3],
+    pub tread: [u8; 3],
+    pub steps: [u8; 3],
+    pub ceiling: Option<[u8; 3]>,
+    /// Individual seats with frames (rather than long seat blocks).
+    pub separate_seats: bool,
 }
 
 impl Venue {
+    pub fn palette(&self) -> Palette {
+        let look = if self.dark_room && self.look == RoomLook::Classic { RoomLook::Studio } else { self.look };
+        let mut p = Palette {
+            deck: [66, 58, 52],
+            stage_wall: [46, 45, 50],
+            pros: [92, 30, 38],
+            trim: [168, 134, 72],
+            house_wall: [74, 46, 50],
+            wainscot: None,
+            rail: None,
+            carpet: [58, 30, 34],
+            seat: [128, 26, 36],
+            riser: [44, 36, 38],
+            tread: [164, 122, 74],
+            steps: [54, 48, 44],
+            ceiling: None,
+            separate_seats: false,
+        };
+        match look {
+            RoomLook::Classic => {}
+            RoomLook::Studio => {
+                p.deck = [34, 34, 38];
+                p.stage_wall = [54, 54, 58];
+                p.house_wall = [96, 96, 100];
+                p.carpet = [40, 38, 42];
+                p.seat = [176, 30, 36];
+                p.riser = [46, 44, 48];
+                p.steps = [30, 30, 34];
+                p.separate_seats = true;
+            }
+            RoomLook::TimberChurch => {
+                p.deck = [58, 50, 44];
+                p.stage_wall = [40, 38, 40];
+                p.pros = [98, 66, 38];
+                p.trim = [130, 90, 50];
+                p.house_wall = [212, 198, 166];
+                p.wainscot = Some([92, 60, 36]);
+                p.carpet = [96, 24, 30];
+                p.seat = [158, 22, 32];
+                p.riser = [76, 40, 34];
+                p.tread = [120, 84, 52];
+                p.steps = [60, 44, 34];
+                p.ceiling = Some([104, 70, 42]);
+                p.separate_seats = true;
+            }
+            RoomLook::TealGold => {
+                p.deck = [36, 34, 36];
+                p.stage_wall = [30, 30, 34];
+                p.pros = [178, 138, 90];
+                p.trim = [206, 168, 82];
+                p.house_wall = [24, 92, 112];
+                p.rail = Some([206, 168, 82]);
+                p.carpet = [150, 32, 42];
+                p.seat = [128, 24, 36];
+                p.riser = [150, 32, 42];
+                p.tread = [204, 164, 92];
+                p.steps = [40, 36, 38];
+                p.ceiling = Some([40, 46, 52]);
+                p.separate_seats = true;
+            }
+            RoomLook::TimberHall => {
+                p.deck = [44, 40, 38];
+                p.stage_wall = [26, 26, 30];
+                p.pros = [40, 38, 42];
+                p.trim = [150, 120, 80];
+                p.house_wall = [186, 148, 102];
+                p.carpet = [126, 100, 74];
+                p.seat = [38, 38, 44];
+                p.riser = [110, 92, 74];
+                p.tread = [172, 132, 86];
+                p.steps = [44, 42, 46];
+                p.ceiling = Some([150, 112, 72]);
+            }
+            RoomLook::RedGilt => {
+                p.pros = [118, 24, 34];
+                p.trim = [204, 164, 72];
+                p.house_wall = [104, 28, 36];
+                p.rail = Some([204, 164, 72]);
+                p.carpet = [92, 20, 28];
+                p.seat = [168, 28, 40];
+                p.riser = [70, 20, 26];
+                p.ceiling = Some([86, 30, 34]);
+            }
+        }
+        p
+    }
+    /// Distance from the first row to the front of row r (includes any cross aisle).
+    pub fn row_offset(&self, r: u32) -> f32 {
+        let gap = if self.cross_aisle_after > 0 && r >= self.cross_aisle_after { 1.2 } else { 0.0 };
+        r as f32 * 0.92 + gap
+    }
+    /// Floor height (relative to the house floor at the front) of row r.
+    pub fn row_rise(&self, r: u32) -> f32 {
+        r as f32 * self.house_rise_per_row
+    }
     pub fn stage_width(&self) -> f32 {
         self.pros_width + 2.0 * self.wing_width
     }
@@ -149,7 +331,7 @@ impl Venue {
         ((self.capacity + spr - 1) / spr).max(2)
     }
     pub fn house_depth(&self) -> f32 {
-        self.rows() as f32 * 0.92 + 2.5
+        self.row_offset(self.rows()) + 2.5 + if self.rear_gallery { 0.8 } else { 0.0 }
     }
     pub fn tower_height(&self) -> f32 {
         if self.open_end_stage && !self.has_fly_tower() {
@@ -216,6 +398,12 @@ pub struct Batten {
     /// For curtains/tabs: 0 = closed, 1 = fully open.
     pub open: f32,
     pub visible: bool,
+    /// Masking opening between the legs, or the width of a drop / screen (0 = automatic).
+    #[serde(default)]
+    pub opening: f32,
+    /// Border height for legs & border lines (0 = automatic).
+    #[serde(default)]
+    pub border_h: f32,
 }
 
 impl Batten {

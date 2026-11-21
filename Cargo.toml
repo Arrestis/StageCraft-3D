@@ -1,6 +1,6 @@
 [package]
 name = "stagecraft_3d"
-version = "0.4.0"
+version = "0.4.1"
 edition = "2021"
 description = "Plan and preview theatre sets in 3D inside real venue presets"
 repository = "https://github.com/Arrestis/StageCraft-3D"
