@@ -107,7 +107,28 @@ pub fn piece_footprint(p: &Piece, v: &Venue, d: &Display, battens: &[Batten]) ->
     (pts, base.y, base.y + p.size[1])
 }
 
-fn piece_geo(g: &mut Geo, p: &Piece, base: V3, rot: f32, obj: u32, highlight: bool) {
+/// Move a point of a hinged part (part space, metres) to where it is when swung open.
+pub fn swing_point(l: V3, size: V3, h: &Hinge) -> V3 {
+    let a = h.open_deg.clamp(-180.0, 180.0);
+    if a.abs() < 1e-4 {
+        return l;
+    }
+    if h.side == 0 {
+        // Lid / trapdoor: lifts about its bottom back edge.
+        let [_, hy, hz] = h.pivot.unwrap_or([0.0, 0.0, -size.z * 0.5]);
+        let (s, c) = a.to_radians().sin_cos();
+        let r = l.z - hz;
+        let y = l.y - hy;
+        return v3(l.x, hy + y * c + r * s, hz + r * c - y * s);
+    }
+    let side = h.side.signum() as f32;
+    let [hx, _, hz] = h.pivot.unwrap_or([side * size.x * 0.5, 0.0, 0.0]);
+    let theta = if h.outwards { side * a } else { -side * a };
+    let rel = v3(l.x - hx, l.y, l.z - hz).rot_y(theta);
+    v3(rel.x + hx, rel.y, rel.z + hz)
+}
+
+fn piece_geo(g: &mut Geo,p: &Piece, base: V3, rot: f32, obj: u32, highlight: bool) {
     let sx = p.size[0] / p.base_size[0].max(1e-3);
     let sy = p.size[1] / p.base_size[1].max(1e-3);
     let sz = p.size[2] / p.base_size[2].max(1e-3);
@@ -124,8 +145,13 @@ fn piece_geo(g: &mut Geo, p: &Piece, base: V3, rot: f32, obj: u32, highlight: bo
         let ps = V3::from_arr(part.size);
         let po = V3::from_arr(part.offset);
         let prot = part.rot;
+        let hinge = part.hinge.clone();
         let xf = move |u: V3| -> V3 {
-            let local = v3(u.x * ps.x, u.y * ps.y, u.z * ps.z).rot_y(prot) + po;
+            let mut l = v3(u.x * ps.x, u.y * ps.y, u.z * ps.z);
+            if let Some(h) = &hinge {
+                l = swing_point(l, ps, h);
+            }
+            let local = l.rot_y(prot) + po;
             let scaled = v3(local.x * sx, local.y * sy, local.z * sz);
             scaled.rot_y(rot) + base
         };

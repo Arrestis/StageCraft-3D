@@ -51,8 +51,9 @@ pub fn sample_project(v: Venue) -> Project {
         put(p, "Actor (scale figure 1.75 m)", -w * 0.25, -d + 2.2, 20.0);
         p[0].color = [168, 150, 120];
         let wall_w = (w * 0.62).min(3.6);
-        p[0].size[0] = wall_w;
-        p[0].size[1] = p[0].size[1].min(v.pros_height - 0.2);
+        let wall_h = p[0].size[1].min(v.pros_height - 0.2);
+        library::set_param(&mut p[0], "width", wall_w);
+        library::set_param(&mut p[0], "height", wall_h);
         p[1].name = "Side wall".into();
         p[1].color = [168, 150, 120];
     } else {

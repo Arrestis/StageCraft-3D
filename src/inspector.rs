@@ -16,12 +16,149 @@ pub fn scaled_parts(p: &Piece) -> Vec<Part> {
             let mut q = q.clone();
             q.offset = [q.offset[0] * sx, q.offset[1] * sy, q.offset[2] * sz];
             q.size = [q.size[0] * sx, q.size[1] * sy, q.size[2] * sz];
+            if let Some(h) = q.hinge.as_mut() {
+                if let Some(pv) = h.pivot.as_mut() {
+                    *pv = [pv[0] * sx, pv[1] * sy, pv[2] * sz];
+                }
+            }
             q
         })
         .collect()
 }
 
-pub const GELS: [(&str, [f32; 3]); 10] = [
+/// One big Open / Shut button for pieces with doors, lids, gates or drawers.
+fn moving_parts_bar(ui: &mut Ui, p: &mut Piece) {
+    if !crate::library::has_moving_parts(p) {
+        return;
+    }
+    let open = crate::library::is_open(p);
+    ui.horizontal(|ui| {
+        let txt = if open { "🚪 Shut" } else { "🚪 Open" };
+        if ui.add(egui::Button::new(RichText::new(txt).size(15.0)).min_size(egui::vec2(90.0, 26.0))).on_hover_text("Open or shut its doors, lids, gates and drawers (key O)").clicked() {
+            crate::library::toggle_open(p);
+        }
+        ui.label(RichText::new(if open { "Currently open" } else { "Currently shut" }).color(Color32::from_gray(160)));
+    });
+}
+
+/// Every setting of a library piece, grouped under headings; the piece is rebuilt on change.
+fn template_editor(ui: &mut Ui, p: &mut Piece, feet: bool) {
+    let Some(mut t) = p.template.clone() else { return };
+    let mut groups: Vec<String> = Vec::new();
+    for q in &t.params {
+        if !groups.contains(&q.group) {
+            groups.push(q.group.clone());
+        }
+    }
+    let mut changed = false;
+    for g in &groups {
+        let title = if g.is_empty() { "Settings" } else { g.as_str() };
+        egui::CollapsingHeader::new(title).id_salt(("tpl", g.as_str())).default_open(true).show(ui, |ui| {
+            for q in t.params.iter_mut().filter(|q| &q.group == g) {
+                let c = match q.kind {
+                    ParamKind::Length => {
+                        let mut c = len_edit(ui, &q.label, &mut q.value, feet, q.min, q.max);
+                        if crate::library::is_open_param(q) {
+                            ui.horizontal(|ui| {
+                                if ui.small_button("Shut").clicked() {
+                                    q.value = q.min;
+                                    c = true;
+                                }
+                                if ui.small_button("Open").clicked() {
+                                    q.value = q.max;
+                                    c = true;
+                                }
+                            });
+                        }
+                        c
+                    }
+                    ParamKind::Angle => deg_edit(ui, &q.label, &mut q.value, q.min, q.max),
+                    ParamKind::Count => {
+                        let mut n = q.value.round() as i32;
+                        let r = ui.add(egui::Slider::new(&mut n, q.min as i32..=q.max as i32).text(q.label.as_str()));
+                        if r.changed() {
+                            q.value = n as f32;
+                        }
+                        r.changed()
+                    }
+                    ParamKind::Toggle => {
+                        let mut b = q.value > 0.5;
+                        let r = ui.checkbox(&mut b, q.label.as_str()).changed();
+                        if r {
+                            q.value = if b { 1.0 } else { 0.0 };
+                        }
+                        r
+                    }
+                    ParamKind::Swing => {
+                        let mut c = ui.add(egui::Slider::new(&mut q.value, q.min..=q.max).suffix("°").text(q.label.as_str())).changed();
+                        ui.horizontal(|ui| {
+                            for (lbl, v) in [("Shut", 0.0f32), ("Ajar", 20.0), ("Half", 45.0), ("Open", 90.0f32.min(q.max))] {
+                                if ui.small_button(lbl).clicked() {
+                                    q.value = v;
+                                    c = true;
+                                }
+                            }
+                        });
+                        c
+                    }
+                };
+                changed |= c;
+            }
+        });
+    }
+    if changed {
+        p.template = Some(t);
+        crate::library::regenerate(p);
+    }
+    if ui.small_button("↺ Reset settings to library defaults").clicked() {
+        let key = p.template.as_ref().map(|t| t.key.clone()).unwrap_or_default();
+        let lib = crate::library::presets();
+        // Prefer the library item with the same name (several items share a template).
+        let def = lib
+            .iter()
+            .find(|i| i.name == p.name && i.template.as_ref().map(|t| t.key == key).unwrap_or(false))
+            .or_else(|| lib.iter().find(|i| i.template.as_ref().map(|t| t.key == key).unwrap_or(false)))
+            .and_then(|i| i.template.clone());
+        if let Some(d) = def {
+            p.template = Some(d);
+            crate::library::regenerate(p);
+        }
+    }
+}
+
+/// Hinged parts of a hand-built piece (made in the custom builder).
+fn hinge_list(ui: &mut Ui, p: &mut Piece) {
+    if !p.parts.iter().any(|q| q.hinge.is_some()) {
+        return;
+    }
+    egui::CollapsingHeader::new("Doors & moving parts").default_open(true).show(ui, |ui| {
+        // Parts sharing a name (a door leaf and its handles) move together.
+        let name_of = |i: usize, h: &Hinge| if h.label.is_empty() { format!("Part {}", i + 1) } else { h.label.clone() };
+        let mut names: Vec<(String, f32, f32)> = Vec::new();
+        for (i, q) in p.parts.iter().enumerate() {
+            if let Some(h) = &q.hinge {
+                let n = name_of(i, h);
+                if !names.iter().any(|x| x.0 == n) {
+                    names.push((n, h.open_deg, h.max_deg));
+                }
+            }
+        }
+        for (n, mut val, max) in names {
+            if ui.add(egui::Slider::new(&mut val, 0.0..=max.max(1.0)).suffix("°").text(n.as_str())).changed() {
+                for (i, q) in p.parts.iter_mut().enumerate() {
+                    let hit = q.hinge.as_ref().map(|h| name_of(i, h) == n).unwrap_or(false);
+                    if hit {
+                        if let Some(h) = q.hinge.as_mut() {
+                            h.open_deg = val;
+                        }
+                    }
+                }
+            }
+        }
+    });
+}
+
+pub const GELS:[(&str, [f32; 3]); 10] = [
     ("Open white", [1.0, 0.97, 0.92]),
     ("Warm", [1.0, 0.8, 0.58]),
     ("Amber", [1.0, 0.62, 0.22]),
@@ -196,7 +333,7 @@ impl App {
         } else {
             heading(ui, "Inspector");
             ui.label("Click anything in the 3D view or the outliner to edit it:");
-            ui.label("• set pieces – size, position, rotation, colour");
+            ui.label("• set pieces – sizes, doors open / shut, position, colour");
             ui.label("• fly bars, curtains and drops – fly in / out");
             ui.label("• lights – aim, colour, beam and level");
             ui.label("• revolve, pit and stage lifts");
@@ -223,14 +360,29 @@ impl App {
                 ui.text_edit_singleline(&mut p.name);
             });
             ui.label(RichText::new(&p.category).color(Color32::from_gray(150)));
-            egui::CollapsingHeader::new("Size").default_open(true).show(ui, |ui| {
-                len_edit(ui, "Width", &mut p.size[0], feet, 0.02, 30.0);
-                len_edit(ui, "Depth", &mut p.size[2], feet, 0.005, 30.0);
-                len_edit(ui, "Height", &mut p.size[1], feet, 0.005, 20.0);
-                if ui.small_button("Reset to original size").clicked() {
-                    p.size = p.base_size;
-                }
-            });
+            moving_parts_bar(ui, p);
+            if p.template.is_some() {
+                template_editor(ui, p, feet);
+                egui::CollapsingHeader::new("Stretch overall").default_open(false).show(ui, |ui| {
+                    ui.label(RichText::new("Squash or stretch the whole piece (the settings above keep their proportions).").size(11.0).color(Color32::from_gray(150)));
+                    len_edit(ui, "Width", &mut p.size[0], feet, 0.02, 30.0);
+                    len_edit(ui, "Depth", &mut p.size[2], feet, 0.005, 30.0);
+                    len_edit(ui, "Height", &mut p.size[1], feet, 0.005, 20.0);
+                    if ui.small_button("Remove stretch").clicked() {
+                        p.size = p.base_size;
+                    }
+                });
+            } else {
+                egui::CollapsingHeader::new("Size").default_open(true).show(ui, |ui| {
+                    len_edit(ui, "Width", &mut p.size[0], feet, 0.02, 30.0);
+                    len_edit(ui, "Depth", &mut p.size[2], feet, 0.005, 30.0);
+                    len_edit(ui, "Height", &mut p.size[1], feet, 0.005, 20.0);
+                    if ui.small_button("Reset to original size").clicked() {
+                        p.size = p.base_size;
+                    }
+                });
+                hinge_list(ui, p);
+            }
             egui::CollapsingHeader::new("Position & rotation").default_open(true).show(ui, |ui| {
                 let mut x = base.x;
                 let mut z = -base.z;
@@ -322,12 +474,15 @@ impl App {
             2 => self.delete_selected(),
             3 => {
                 let p = self.state().pieces[idx].clone();
-                let item = LibItem { name: p.name.clone(), category: "Custom".into(), material: p.material, color: p.color, parts: scaled_parts(&p) };
+                let item = LibItem { name: p.name.clone(), category: "Custom".into(), material: p.material, color: p.color, parts: scaled_parts(&p), template: None };
                 self.builder = Some(Builder { item, editing_piece: Some(p.id), editing_lib: None, preview_on_stage: false });
             }
             4 => {
                 let p = self.state().pieces[idx].clone();
-                self.project.custom_library.push(LibItem { name: p.name.clone(), category: "Custom".into(), material: p.material, color: p.color, parts: scaled_parts(&p) });
+                // Keep the settings (so the saved piece stays adjustable) unless it was stretched.
+                let unstretched = (0..3).all(|i| (p.size[i] - p.base_size[i]).abs() < 1e-3);
+                let template = if unstretched { p.template.clone() } else { None };
+                self.project.custom_library.push(LibItem { name: p.name.clone(), category: "Custom".into(), material: p.material, color: p.color, parts: scaled_parts(&p), template });
                 self.notify(format!("Saved '{}' to My custom pieces", p.name), now);
             }
             _ => {}

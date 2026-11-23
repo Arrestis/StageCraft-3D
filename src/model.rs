@@ -562,6 +562,79 @@ pub struct Part {
     /// None = the piece's main colour.
     pub color: Option<[u8; 3]>,
     pub material: Option<Material>,
+    /// A hinged part (door leaf, gate, casement, lid) that swings open about one edge.
+    #[serde(default)]
+    pub hinge: Option<Hinge>,
+}
+
+/// How a hinged part swings: about its left or right edge (vertical axis), or about its
+/// back edge (lid / trapdoor, horizontal axis).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Hinge {
+    /// -1 = hinged on its left edge, +1 = right edge, 0 = back edge (lifts up like a lid).
+    pub side: i8,
+    /// How far it is open, in degrees (0 = shut).
+    pub open_deg: f32,
+    /// Swings towards the front of the piece (true) or towards the back.
+    pub outwards: bool,
+    /// Largest opening angle.
+    pub max_deg: f32,
+    /// Name shown next to its open/shut control.
+    #[serde(default)]
+    pub label: String,
+    /// Hinge axis relative to the part's base centre (None = the edge named by `side`).
+    /// Lets handles and glazing bars swing with the leaf they sit on.
+    #[serde(default)]
+    pub pivot: Option<[f32; 3]>,
+}
+
+/// What a template setting is measured in.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ParamKind {
+    Length,
+    Angle,
+    Count,
+    Toggle,
+    /// An opening angle (door, gate, lid): shown with Open / Shut buttons.
+    Swing,
+}
+
+/// One adjustable setting of a library piece (door width, number of shelves...).
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Param {
+    pub key: String,
+    pub label: String,
+    pub value: f32,
+    pub min: f32,
+    pub max: f32,
+    pub kind: ParamKind,
+    /// Heading the setting is listed under (e.g. "Flat", "Door").
+    #[serde(default)]
+    pub group: String,
+}
+
+/// A library piece rebuilt from its settings whenever one changes.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct Template {
+    pub key: String,
+    pub params: Vec<Param>,
+}
+
+impl Template {
+    pub fn get(&self, key: &str) -> f32 {
+        self.params.iter().find(|p| p.key == key).map(|p| p.value).unwrap_or(0.0)
+    }
+    pub fn on(&self, key: &str) -> bool {
+        self.get(key) > 0.5
+    }
+    pub fn set(&mut self, key: &str, v: f32) -> bool {
+        if let Some(p) = self.params.iter_mut().find(|p| p.key == key) {
+            p.value = v.clamp(p.min, p.max);
+            true
+        } else {
+            false
+        }
+    }
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -571,6 +644,8 @@ pub struct LibItem {
     pub material: Material,
     pub color: [u8; 3],
     pub parts: Vec<Part>,
+    #[serde(default)]
+    pub template: Option<Template>,
 }
 
 impl LibItem {
@@ -625,6 +700,9 @@ pub struct Piece {
     pub on_revolve: bool,
     /// Hung from a batten (flies with it).
     pub flown_on: Option<usize>,
+    /// Library settings this piece is rebuilt from (None = fixed parts).
+    #[serde(default)]
+    pub template: Option<Template>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

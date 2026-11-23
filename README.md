@@ -29,7 +29,10 @@ fly bars in and out, light the scene and check sightlines before anything is bui
 - **Lighting** – front-of-house, overhead bars and side positions with aimable lights, beam
   cones, colour and intensity, and a Work Light / Cue Lighting switch.
 - **Set pieces** – a library of furniture and scenery, plus a Custom Piece Builder (boxes, flats,
-  columns, ramps, stairs and more, with exact sizes, position, rotation and material).
+  columns, ramps, stairs, hinged doors and lids, with exact sizes, position, rotation and material).
+  Every library piece has its own settings (a door flat's door width, height, position, hinge
+  side and swing; shelves, drawers, treads, gates...), and doors, lids, gates and drawers open
+  and shut with one click or the O key.
 - **Easy controls** – Director, 3/4 Overview, Ground Plan, SL / SR Wing and Free Orbit cameras;
   click or outliner selection, drag, nudge, rotate in 15° or 1° steps, snap to grid, and
   warnings for pieces off the stage, in the sightlines, on the curtain line or too tall.

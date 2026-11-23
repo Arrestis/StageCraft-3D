@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased – every piece adjustable, doors that open and shut
+
+- Every library piece now has its own settings in the Inspector instead of one overall stretch:
+  a door flat sets flat width / height / thickness, door width, height and position, single or
+  double doors, hinge side, swing direction, architrave and how far the door is open (0–110°).
+- Window flats (casements that open), sofas and chairs (seat cushions, arms), tables (round,
+  shelf), desks (drawers, top drawer pulls out), beds, bookshelves (shelves, cupboard doors),
+  piano lid, stairs, risers, trap-door rostrums, arches, columns, trees, fences with a gate and
+  rehearsal figures all have their own settings.
+- New pieces: Wardrobe, Chest / trunk, Double doors flat, Garden gate in fence.
+- One-click **Open / Shut** button (or the O key) for anything with doors, lids, gates or drawers.
+- Build Custom Piece: new Door leaf and Lid / trapdoor blocks, and any block can be hinged.
+- "Stretch overall" is still there for squashing or stretching a whole piece.
 ## v0.4.1 – venues from their own documents
 
 - **TAS Hoskins Centre** rebuilt from its technical specifications: 12 m x 7.65 m proscenium on a

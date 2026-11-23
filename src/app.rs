@@ -273,6 +273,12 @@ impl App {
                         }
                     }
                     "builder" => app.open_builder(None),
+                    "open" => {
+                        let i = (app.sel & !OBJ_MASK) as usize;
+                        if app.sel & OBJ_MASK == OBJ_PIECE && i < app.state().pieces.len() {
+                            crate::library::toggle_open(&mut app.state_mut().pieces[i]);
+                        }
+                    }
                     "cam" => {
                         let p = match val {
                             "director" => CamPreset::Director,
@@ -786,6 +792,15 @@ impl App {
         let kind = self.sel & OBJ_MASK;
         let idx = (self.sel & !OBJ_MASK) as usize;
         if kind == OBJ_PIECE && idx < self.state().pieces.len() {
+            // O opens / shuts the selected piece's doors, lids, gates and drawers (even when locked).
+            if ctx.input(|i| i.key_pressed(egui::Key::O) && !i.modifiers.command) {
+                let p = &mut self.state_mut().pieces[idx];
+                if crate::library::toggle_open(p) {
+                    let msg = if crate::library::is_open(p) { "Opened" } else { "Shut" };
+                    let name = p.name.clone();
+                    self.notify(format!("{msg}: {name}"), now);
+                }
+            }
             if self.state().pieces[idx].locked {
                 return;
             }

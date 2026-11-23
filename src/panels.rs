@@ -202,7 +202,7 @@ impl App {
             }
             ui.separator();
             ui.label(
-                RichText::new("Drag: orbit · Right-drag: pan · Scroll: zoom · Drag a piece to move (Shift = height) · Arrows nudge · Q/E rotate · Del delete · Ctrl+D duplicate · F focus")
+                RichText::new("Drag: orbit · Right-drag: pan · Scroll: zoom · Drag a piece to move (Shift = height) · Arrows nudge · Q/E rotate · Del delete · Ctrl+D duplicate · O open/shut doors · F focus")
                     .size(11.5)
                     .color(Color32::from_gray(150)),
             );

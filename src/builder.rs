@@ -14,7 +14,8 @@ impl App {
             category: "Custom".into(),
             material: Material::PaintedWood,
             color: [176, 150, 120],
-            parts: vec![Part { shape: Shape::Box, offset: [0.0, 0.0, 0.0], size: [1.2, 0.9, 0.6], rot: 0.0, color: None, material: None }],
+            parts: vec![Part { shape: Shape::Box, offset: [0.0, 0.0, 0.0], size: [1.2, 0.9, 0.6], rot: 0.0, color: None, material: None, hinge: None }],
+            template: None,
         });
         self.builder = Some(Builder { item, editing_piece: None, editing_lib: None, preview_on_stage: true });
     }
@@ -47,6 +48,7 @@ impl App {
                 ui.separator();
                 ui.label(RichText::new("Add a building block:").strong());
                 let mut add_part: Option<(Shape, [f32; 3], f32)> = None;
+                let mut add_hinged: Option<(Shape, [f32; 3], i8, &str)> = None;
                 ui.horizontal_wrapped(|ui| {
                     if ui.button("▭ Box / flat").clicked() {
                         add_part = Some((Shape::Box, [1.2, 2.4, 0.08], 0.0));
@@ -75,10 +77,28 @@ impl App {
                     if ui.button("▲ Cone").clicked() {
                         add_part = Some((Shape::Cone, [0.6, 0.8, 0.6], 0.0));
                     }
+                    if ui.button("🚪 Door leaf").on_hover_text("A hinged panel that swings open and shut").clicked() {
+                        add_hinged = Some((Shape::Box, [0.9, 2.1, 0.04], -1, "Door"));
+                    }
+                    if ui.button("🗃 Lid / trapdoor").on_hover_text("A panel that lifts up about its back edge").clicked() {
+                        add_hinged = Some((Shape::Box, [0.8, 0.04, 0.6], 0, "Lid"));
+                    }
                 });
+                if let Some((shape, size, side, label)) = add_hinged {
+                    let n = b.item.parts.len() as f32;
+                    b.item.parts.push(Part {
+                        shape,
+                        offset: [n * 0.3, 0.0, 0.0],
+                        size,
+                        rot: 0.0,
+                        color: None,
+                        material: None,
+                        hinge: Some(Hinge { side, open_deg: 0.0, outwards: true, max_deg: 110.0, label: label.into(), pivot: None }),
+                    });
+                }
                 if let Some((shape, size, rot)) = add_part {
                     let n = b.item.parts.len() as f32;
-                    b.item.parts.push(Part { shape, offset: [n * 0.3, 0.0, 0.0], size, rot, color: None, material: None });
+                    b.item.parts.push(Part { shape, offset: [n * 0.3, 0.0, 0.0], size, rot, color: None, material: None, hinge: None });
                 }
                 ui.separator();
                 let mut remove = None;
@@ -105,6 +125,7 @@ impl App {
                             len_edit(ui, "Offset up/downstage", &mut p.offset[2], feet, -20.0, 20.0);
                             len_edit(ui, "Raised by", &mut p.offset[1], feet, -5.0, 20.0);
                             deg_edit(ui, "Rotation", &mut p.rot, -180.0, 180.0);
+                            hinge_edit(ui, p, i);
                             let mut own = p.color.is_some();
                             if ui.checkbox(&mut own, "Own colour").changed() {
                                 p.color = if own { Some([200, 200, 200]) } else { None };
@@ -179,6 +200,7 @@ impl App {
                             p.name = item.name.clone();
                             p.material = item.material;
                             p.color = item.color;
+                            p.template = item.template.clone();
                         }
                         self.notify("Piece updated", now);
                     }
@@ -188,5 +210,30 @@ impl App {
         if open && !close {
             self.builder = Some(b);
         }
+    }
+}
+
+/// Hinge settings of one block: none, or which edge it swings on and how far it is open.
+fn hinge_edit(ui: &mut egui::Ui, p: &mut Part, i: usize) {
+    let mut on = p.hinge.is_some();
+    if ui.checkbox(&mut on, "Hinged (opens and shuts)").changed() {
+        p.hinge = if on { Some(Hinge { side: -1, open_deg: 0.0, outwards: true, max_deg: 110.0, label: format!("Door {}", i + 1), pivot: None }) } else { None };
+    }
+    if let Some(h) = p.hinge.as_mut() {
+        ui.horizontal(|ui| {
+            ui.label("Name");
+            ui.text_edit_singleline(&mut h.label);
+        });
+        ui.horizontal(|ui| {
+            ui.label("Hinge on");
+            ui.selectable_value(&mut h.side, -1, "Left edge");
+            ui.selectable_value(&mut h.side, 1, "Right edge");
+            ui.selectable_value(&mut h.side, 0, "Back edge (lid)");
+        });
+        if h.side != 0 {
+            ui.checkbox(&mut h.outwards, "Opens towards the front");
+        }
+        ui.add(egui::Slider::new(&mut h.max_deg, 10.0..=180.0).suffix("°").text("Opens up to"));
+        ui.add(egui::Slider::new(&mut h.open_deg, 0.0..=h.max_deg).suffix("°").text("Open now"));
     }
 }
