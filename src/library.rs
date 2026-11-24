@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Doug Rumble
+// SPDX-License-Identifier: GPL-3.0-only
+
 //! Preset library of furniture and set pieces. Every preset is a template: a list of
 //! settings (sizes, counts, options, how far a door is open) and a generator that rebuilds
 //! the piece's parts from them, so any piece can be resized and its doors opened or shut.
@@ -1076,6 +1079,7 @@ pub fn make_piece(item: &LibItem, id: u32, pos: [f32; 3]) -> Piece {
         on_revolve: false,
         flown_on: None,
         template: item.template.clone(),
+        hinged_to: None,
     }
 }
 

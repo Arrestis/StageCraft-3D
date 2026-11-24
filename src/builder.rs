@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Doug Rumble
+// SPDX-License-Identifier: GPL-3.0-only
+
 //! The "Build Custom Piece" window: assemble a piece from simple blocks.
 
 use crate::app::*;

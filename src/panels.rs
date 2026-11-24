@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Doug Rumble
+// SPDX-License-Identifier: GPL-3.0-only
+
 //! Toolbar, status bar and the left-hand tabs (venue, pieces, lights, scenes).
 
 use crate::app::*;
@@ -100,6 +103,15 @@ impl App {
                 if ui.button("📷 Export PNG snapshot of this view…").clicked() {
                     ui.close();
                     self.export_png(&ctx);
+                }
+                ui.separator();
+                if ui.button("🖼 Start-up screen & theatre company…").clicked() {
+                    ui.close();
+                    self.show_startup_win = true;
+                }
+                if ui.button("ℹ About Stagecraft 3D & licence…").clicked() {
+                    ui.close();
+                    self.show_about = true;
                 }
             });
             ui.add(egui::TextEdit::singleline(&mut self.project.name).desired_width(170.0).hint_text("Production name"));

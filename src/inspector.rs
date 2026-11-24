@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Doug Rumble
+// SPDX-License-Identifier: GPL-3.0-only
+
 //! Right-hand panel (inspector + outliner).
 
 use crate::app::*;
@@ -126,6 +129,53 @@ fn template_editor(ui: &mut Ui, p: &mut Piece, feet: bool) {
     }
 }
 
+/// Plain flat, door, double doors, window or archway: switch a flat between them. Its width,
+/// height and thickness stay the same.
+fn flat_type_bar(ui: &mut Ui, p: &mut Piece, lib: &[LibItem]) {
+    let Some(t) = p.template.clone() else { return };
+    let cur = match t.key.as_str() {
+        "flat" => "flat",
+        "doorflat" if t.on("double") => "double",
+        "doorflat" => "door",
+        "windowflat" => "window",
+        "arch" => "arch",
+        _ => return,
+    };
+    let kinds = [
+        ("flat", "Plain", "Flat 1.2 x 2.4 m"),
+        ("door", "Door", "Door flat"),
+        ("double", "Double doors", "Double doors flat"),
+        ("window", "Window", "Window flat"),
+        ("arch", "Archway", "Archway"),
+    ];
+    let mut pick = None;
+    ui.horizontal_wrapped(|ui| {
+        ui.label("Flat type:");
+        for (k, label, item) in kinds {
+            let r = ui.selectable_label(cur == k, label).on_hover_text("Change what's in this flat. Its width, height and thickness stay the same.");
+            if r.clicked() && cur != k {
+                pick = Some(item);
+            }
+        }
+    });
+    let Some(item_name) = pick else { return };
+    let Some(mut nt) = lib.iter().find(|i| i.name == item_name).and_then(|i| i.template.clone()) else { return };
+    let (w, h) = (t.get("width"), t.get("height"));
+    for key in ["width", "height", "thick"] {
+        nt.set(key, t.get(key));
+    }
+    // A new door starts shut; an arch's curve has to fit under the top of the flat.
+    nt.set("door_open", 0.0);
+    let ow = nt.get("open_w").min(w - 0.1);
+    nt.set("spring_h", nt.get("spring_h").min(h - ow * 0.5 - 0.15));
+    // Pieces still called after a library item take the new type's name.
+    if lib.iter().any(|i| i.name == p.name) {
+        p.name = item_name.to_string();
+    }
+    p.template = Some(nt);
+    crate::library::regenerate(p);
+}
+
 /// Hinged parts of a hand-built piece (made in the custom builder).
 fn hinge_list(ui: &mut Ui, p: &mut Piece) {
     if !p.parts.iter().any(|q| q.hinge.is_some()) {
@@ -224,6 +274,9 @@ impl App {
                     }
                     if p.flown_on.is_some() {
                         ui.label("⬆");
+                    }
+                    if p.hinged_to.is_some() {
+                        ui.label("🔗").on_hover_text("Hinged to another flat");
                     }
                 });
             }
@@ -349,6 +402,7 @@ impl App {
         let battens = self.state().battens.clone();
         let warns: Vec<String> = self.warnings.iter().filter(|w| w.piece == idx).map(|w| w.text.clone()).collect();
         let (base, wrot) = piece_world(&self.state().pieces[idx], &v, &d, &battens);
+        let lib = self.library.clone();
         let mut action = 0u8;
         let mut revolve_toggle = None;
         let mut world_xz = None;
@@ -362,6 +416,7 @@ impl App {
             ui.label(RichText::new(&p.category).color(Color32::from_gray(150)));
             moving_parts_bar(ui, p);
             if p.template.is_some() {
+                flat_type_bar(ui, p, &lib);
                 template_editor(ui, p, feet);
                 egui::CollapsingHeader::new("Stretch overall").default_open(false).show(ui, |ui| {
                     ui.label(RichText::new("Squash or stretch the whole piece (the settings above keep their proportions).").size(11.0).color(Color32::from_gray(150)));
@@ -383,7 +438,19 @@ impl App {
                 });
                 hinge_list(ui, p);
             }
+        }
+        self.hinge_section(ui, idx, now);
+        {
+            let p = &mut self.state_mut().pieces[idx];
+            let hinged = p.hinged_to.is_some();
             egui::CollapsingHeader::new("Position & rotation").default_open(true).show(ui, |ui| {
+                if hinged {
+                    ui.label(
+                        RichText::new("This flat stands against the flat it's hinged to. Drag any flat in the group (or use the arrow keys) to move them all; use Fold above, or Q / E, to swing this one.")
+                            .color(Color32::from_gray(170)),
+                    );
+                    return;
+                }
                 let mut x = base.x;
                 let mut z = -base.z;
                 let cx = len_edit(ui, "Across (+ = stage left)", &mut x, feet, -40.0, 40.0);
@@ -422,21 +489,25 @@ impl App {
                 color_edit(ui, "Main colour", &mut p.color);
             });
             egui::CollapsingHeader::new("Staging").default_open(true).show(ui, |ui| {
-                if v.has_revolve {
-                    let mut on = p.on_revolve;
-                    if ui.checkbox(&mut on, "Rides the revolve").changed() {
-                        revolve_toggle = Some(on);
-                    }
-                }
-                let cur = p.flown_on.and_then(|i| battens.get(i)).map(|b| b.name.clone()).unwrap_or_else(|| "Stands on the floor".into());
-                egui::ComboBox::from_label("Hang from").selected_text(cur).show_ui(ui, |ui| {
-                    ui.selectable_value(&mut p.flown_on, None, "Stands on the floor");
-                    for (i, b) in battens.iter().enumerate() {
-                        if matches!(b.kind, BattenKind::Scenery | BattenKind::Drop | BattenKind::Border) {
-                            ui.selectable_value(&mut p.flown_on, Some(i), format!("{} (flies)", b.name));
+                if hinged {
+                    ui.label(RichText::new("Rides the revolve and flies with the flat it's hinged to.").color(Color32::from_gray(160)));
+                } else {
+                    if v.has_revolve {
+                        let mut on = p.on_revolve;
+                        if ui.checkbox(&mut on, "Rides the revolve").changed() {
+                            revolve_toggle = Some(on);
                         }
                     }
-                });
+                    let cur = p.flown_on.and_then(|i| battens.get(i)).map(|b| b.name.clone()).unwrap_or_else(|| "Stands on the floor".into());
+                    egui::ComboBox::from_label("Hang from").selected_text(cur).show_ui(ui, |ui| {
+                        ui.selectable_value(&mut p.flown_on, None, "Stands on the floor");
+                        for (i, b) in battens.iter().enumerate() {
+                            if matches!(b.kind, BattenKind::Scenery | BattenKind::Drop | BattenKind::Border) {
+                                ui.selectable_value(&mut p.flown_on, Some(i), format!("{} (flies)", b.name));
+                            }
+                        }
+                    });
+                }
                 ui.checkbox(&mut p.locked, "Lock (can't be dragged)");
                 ui.checkbox(&mut p.visible, "Visible in this scene");
             });
@@ -486,6 +557,126 @@ impl App {
                 self.notify(format!("Saved '{}' to My custom pieces", p.name), now);
             }
             _ => {}
+        }
+    }
+
+    /// Hinges for flats: what this flat is hinged to and how far it's folded, the flats hinged to
+    /// it, and buttons to hinge a new or an existing flat to either edge.
+    fn hinge_section(&mut self, ui: &mut Ui, idx: usize, now: f64) {
+        use crate::joins;
+        enum Act {
+            Select(usize),
+            Fold(f32),
+            Unhinge,
+            New(i8),
+            Join(usize, i8),
+        }
+        let st = self.state();
+        let Some(me) = st.pieces.get(idx).cloned() else { return };
+        if !joins::is_flat_like(&me) {
+            return;
+        }
+        let edge = |side: i8| if side > 0 { "right" } else { "left" };
+        let parent = me.hinged_to.clone().and_then(|j| joins::parent_of(st, idx).map(|pi| (pi, st.pieces[pi].name.clone(), j)));
+        let kids: Vec<(usize, String, i8)> = st
+            .pieces
+            .iter()
+            .enumerate()
+            .filter_map(|(i, q)| q.hinged_to.as_ref().filter(|j| j.to == me.id).map(|j| (i, q.name.clone(), j.side)))
+            .collect();
+        let free = [joins::edge_free(st, idx, -1), joins::edge_free(st, idx, 1)];
+        let cands = |side: i8| -> Vec<(usize, String)> {
+            (0..st.pieces.len()).filter(|&c| joins::can_join(st, c, idx, side).is_ok()).map(|c| (c, st.pieces[c].name.clone())).collect()
+        };
+        let cand = [cands(-1), cands(1)];
+        let mut act = None;
+        egui::CollapsingHeader::new("🔗 Hinges – join flats").default_open(true).show(ui, |ui| {
+            if let Some((pi, pname, j)) = &parent {
+                ui.horizontal_wrapped(|ui| {
+                    ui.label(format!("Hinged to the {} edge of", edge(j.side)));
+                    if ui.link(pname.as_str()).on_hover_text("Select that flat").clicked() {
+                        act = Some(Act::Select(*pi));
+                    }
+                });
+                let mut a = j.angle;
+                if ui.add(egui::Slider::new(&mut a, -180.0..=180.0).suffix("°").text("Fold")).changed() {
+                    act = Some(Act::Fold(a));
+                }
+                ui.horizontal_wrapped(|ui| {
+                    for (lbl, val) in [("In line", 0.0f32), ("45°", 45.0), ("Square", 90.0), ("Folded shut", 180.0), ("Back 90°", -90.0)] {
+                        if ui.small_button(lbl).clicked() {
+                            act = Some(Act::Fold(val));
+                        }
+                    }
+                });
+                ui.label(RichText::new("+ folds towards the audience, – folds back. Q / E fold it too.").size(11.0).color(Color32::from_gray(150)));
+                if ui.button("✂ Unhinge – let it stand on its own").clicked() {
+                    act = Some(Act::Unhinge);
+                }
+                ui.separator();
+            }
+            if !kids.is_empty() {
+                ui.label("Hinged to this flat:");
+                for (ci, n, side) in &kids {
+                    if ui.link(format!("{n} – on the {} edge", edge(*side))).clicked() {
+                        act = Some(Act::Select(*ci));
+                    }
+                }
+                ui.add_space(2.0);
+            }
+            ui.label(RichText::new("Join another flat with hinges:").color(Color32::from_gray(190)));
+            ui.horizontal(|ui| {
+                for (k, side, lbl) in [(0usize, -1i8, "+ New flat on the left"), (1, 1, "+ New flat on the right")] {
+                    let r = ui.add_enabled(free[k], egui::Button::new(lbl)).on_hover_text("Adds a plain flat, as tall and thick as this one, hinged to this edge").on_disabled_hover_text("That edge already has a hinge");
+                    if r.clicked() {
+                        act = Some(Act::New(side));
+                    }
+                }
+            });
+            for (k, side) in [(0usize, -1i8), (1, 1)] {
+                let lbl = format!("🔗 Hinge a flat to the {} edge ▸", edge(side));
+                ui.add_enabled_ui(free[k] && !cand[k].is_empty(), |ui| {
+                    ui.menu_button(lbl.as_str(), |ui| {
+                        for (c, n) in &cand[k] {
+                            if ui.button(n.as_str()).clicked() {
+                                act = Some(Act::Join(*c, side));
+                                ui.close();
+                            }
+                        }
+                    });
+                });
+            }
+        });
+        match act {
+            Some(Act::Select(i)) => self.sel = OBJ_PIECE + i as u32,
+            Some(Act::Fold(a)) => {
+                if let Some(j) = self.state_mut().pieces[idx].hinged_to.as_mut() {
+                    j.angle = a.clamp(-180.0, 180.0);
+                }
+                joins::apply(self.state_mut());
+            }
+            Some(Act::Unhinge) => {
+                self.state_mut().pieces[idx].hinged_to = None;
+                self.notify(format!("Unhinged: {}", me.name), now);
+            }
+            Some(Act::New(side)) => {
+                let id = self.project.next_id;
+                let lib = self.library.clone();
+                if let Some(ni) = joins::add_flat(self.state_mut(), idx, side, id, &lib) {
+                    self.project.next_id += 1;
+                    self.sel = OBJ_PIECE + ni as u32;
+                    self.notify(format!("New flat hinged to the {} edge of {}", edge(side), me.name), now);
+                }
+            }
+            Some(Act::Join(c, side)) => match joins::join(self.state_mut(), c, idx, side) {
+                Ok(()) => {
+                    let n = self.state().pieces[c].name.clone();
+                    self.sel = OBJ_PIECE + c as u32;
+                    self.notify(format!("{n} is hinged to the {} edge of {}", edge(side), me.name), now);
+                }
+                Err(e) => self.notify(e, now),
+            },
+            None => {}
         }
     }
 

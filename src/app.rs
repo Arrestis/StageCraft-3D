@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Doug Rumble
+// SPDX-License-Identifier: GPL-3.0-only
+
 //! The Stagecraft 3D application: state, camera, 3D viewport and interaction.
 
 use crate::checks::{self, Warning};
@@ -164,6 +167,18 @@ pub struct App {
     exit_after_shot: bool,
     /// The app icon, shown next to the name in the top bar.
     pub logo: Option<egui::TextureHandle>,
+    /// Settings kept on this computer (start-up screen, theatre company name).
+    pub prefs: crate::startup::Prefs,
+    /// The start-up screen, while it is showing.
+    pub splash: Option<crate::startup::Splash>,
+    pub show_startup_win: bool,
+    pub show_about: bool,
+    /// The large app picture (start-up screen and About box), loaded when first needed.
+    pub big_logo: Option<egui::TextureHandle>,
+    /// Your own start-up picture: the file it came from, and the picture (None if it can't be read).
+    pub own_picture: Option<(String, Option<egui::TextureHandle>)>,
+    /// Making test pictures (`--screenshot`): don't read or write this computer's settings.
+    pub test_mode: bool,
 }
 
 fn load_logo(ctx: &egui::Context) -> Option<egui::TextureHandle> {
@@ -190,6 +205,9 @@ impl App {
         let venues = venues::presets();
         let venue = venues.iter().find(|v| v.key == "armidale_playhouse").cloned().unwrap_or_else(|| venues[0].clone());
         let project = crate::sample::sample_project(venue);
+        let test_mode = screenshot.is_some();
+        let prefs = if test_mode { crate::startup::Prefs::default() } else { crate::startup::Prefs::load() };
+        let splash = (!test_mode && prefs.show_splash).then(|| crate::startup::Splash::new(false));
         let mut app = App {
             project,
             venues,
@@ -230,6 +248,13 @@ impl App {
             last_render_ms: 0.0,
             exit_after_shot: false,
             logo: load_logo(&cc.egui_ctx),
+            prefs,
+            splash,
+            show_startup_win: false,
+            show_about: false,
+            big_logo: None,
+            own_picture: None,
+            test_mode,
         };
         app.snap_display();
         app.apply_cam_preset(CamPreset::Overview, false, 1.6);
@@ -273,6 +298,40 @@ impl App {
                         }
                     }
                     "builder" => app.open_builder(None),
+                    // join=<flat>:<to flat>:<-1 left | 1 right edge>:<fold degrees> (piece numbers)
+                    "join" => {
+                        let n: Vec<f32> = val.split(':').filter_map(|x| x.parse().ok()).collect();
+                        if n.len() >= 3 {
+                            let (c, p) = (n[0] as usize, n[1] as usize);
+                            let side = if n[2] < 0.0 { -1 } else { 1 };
+                            if crate::joins::join(app.state_mut(), c, p, side).is_ok() {
+                                if let Some(j) = app.state_mut().pieces[c].hinged_to.as_mut() {
+                                    j.angle = n.get(3).copied().unwrap_or(0.0);
+                                }
+                                crate::joins::apply(app.state_mut());
+                            }
+                        }
+                    }
+                    // Close-up of the selected piece (dist = how far back, metres).
+                    "focus" => {
+                        app.focus_selected();
+                        if let Some(mut g) = app.orbit_goal.take() {
+                            if let Ok(dist) = val.parse::<f32>() {
+                                g.dist = dist;
+                            }
+                            app.orbit = g;
+                        }
+                    }
+                    "yaw" => app.orbit.yaw = val.parse().unwrap_or(app.orbit.yaw),
+                    "pitch" => app.orbit.pitch = val.parse().unwrap_or(app.orbit.pitch),
+                    "splash" => app.splash = Some(crate::startup::Splash::new(true)),
+                    "company" => app.prefs.company = val.replace('_', " "),
+                    "picture" => {
+                        app.prefs.picture = val.to_string();
+                        app.prefs.use_own_picture = true;
+                    }
+                    "about" => app.show_about = true,
+                    "startup" => app.show_startup_win = true,
                     "open" => {
                         let i = (app.sel & !OBJ_MASK) as usize;
                         if app.sel & OBJ_MASK == OBJ_PIECE && i < app.state().pieces.len() {
@@ -477,6 +536,8 @@ impl App {
             q.pos[0] += 0.5;
             q.pos[2] += 0.5;
             q.name = format!("{} copy", q.name);
+            // The copy stands on its own (its original keeps the hinge).
+            q.hinged_to = None;
             self.state_mut().pieces.push(q);
             self.sel = OBJ_PIECE + (self.state().pieces.len() - 1) as u32;
         }
@@ -585,9 +646,13 @@ impl App {
             }
             ctx.request_repaint();
         }
+        crate::joins::apply(self.state_mut());
         self.warnings = checks::check(&self.project, &self.disp);
 
-        self.keyboard(&ctx, now);
+        // While the start-up screen shows, a key press only closes it.
+        if self.splash.is_none() {
+            self.keyboard(&ctx, now);
+        }
 
         egui::Panel::top("top").show(ui, |ui| self.top_bar(ui, now));
         egui::Panel::bottom("status").show(ui, |ui| self.status_bar(ui));
@@ -601,6 +666,8 @@ impl App {
             self.viewport(ui, now);
         });
         self.builder_window(&ctx, now);
+        self.startup_window(&ctx, now);
+        self.about_window(&ctx);
 
         // Toast.
         if let Some((msg, until)) = self.toast.clone() {
@@ -617,6 +684,7 @@ impl App {
             }
         }
 
+        self.splash_overlay(&ctx, now);
         self.handle_shot(&ctx);
     }
 
@@ -804,6 +872,9 @@ impl App {
             if self.state().pieces[idx].locked {
                 return;
             }
+            // A hinged flat moves its whole group (the flat at the top of the chain); Q / E fold it.
+            let mv = crate::joins::root_of(self.state(), idx);
+            let group_locked = self.state().pieces[mv].locked;
             let (mut dx, mut dz, mut dy, mut dr) = (0.0, 0.0, 0.0, 0.0);
             if left {
                 dx -= step;
@@ -829,17 +900,26 @@ impl App {
             if e {
                 dr -= rstep;
             }
-            if dx != 0.0 || dz != 0.0 {
+            if (dx != 0.0 || dz != 0.0) && !group_locked {
                 let v = self.project.venue.clone();
                 let d = self.disp.clone();
                 let b = self.state().battens.clone();
-                let (base, _) = piece_world(&self.state().pieces[idx], &v, &d, &b);
-                self.set_piece_world_xz(idx, base.x + dx, base.z + dz);
+                let (base, _) = piece_world(&self.state().pieces[mv], &v, &d, &b);
+                self.set_piece_world_xz(mv, base.x + dx, base.z + dz);
             }
-            let p = &mut self.state_mut().pieces[idx];
-            p.pos[1] = (p.pos[1] + dy).max(-3.0);
+            if !group_locked {
+                let p = &mut self.state_mut().pieces[mv];
+                p.pos[1] = (p.pos[1] + dy).max(-3.0);
+            }
             if dr != 0.0 {
-                p.rot = deg_wrap(p.rot + dr);
+                let p = &mut self.state_mut().pieces[idx];
+                if let Some(j) = p.hinged_to.as_mut() {
+                    // Fold the same way a free piece would turn.
+                    j.angle = (j.angle - j.side.signum() as f32 * dr).clamp(-180.0, 180.0);
+                } else if !group_locked {
+                    p.rot = deg_wrap(p.rot + dr);
+                }
+                crate::joins::apply(self.state_mut());
             }
             if del {
                 self.delete_selected();
@@ -936,9 +1016,15 @@ impl App {
             let idx = (picked & !OBJ_MASK) as usize;
             self.drag = Some(if !primary {
                 Drag::Pan
-            } else if kind == OBJ_PIECE && idx < self.state().pieces.len() && !self.state().pieces[idx].locked {
+            } else if kind == OBJ_PIECE
+                && idx < self.state().pieces.len()
+                && !self.state().pieces[idx].locked
+                && !self.state().pieces[crate::joins::root_of(self.state(), idx)].locked
+            {
                 self.sel = picked;
-                let p = self.state().pieces[idx].clone();
+                // Dragging a hinged flat moves its whole group: drag the flat at the top of the chain.
+                let mv = crate::joins::root_of(self.state(), idx);
+                let p = self.state().pieces[mv].clone();
                 let (base, _) = piece_world(&p, &self.project.venue, &self.disp, &self.state().battens);
                 let mut offset = V3::ZERO;
                 if let Some(cm) = &self.last_cm {
@@ -947,7 +1033,7 @@ impl App {
                         offset = base - h;
                     }
                 }
-                Drag::Piece { idx, offset, plane_y: base.y, vertical: shift, start_elev: p.pos[1] }
+                Drag::Piece { idx: mv, offset, plane_y: base.y, vertical: shift, start_elev: p.pos[1] }
             } else if kind == OBJ_BATTEN {
                 self.sel = picked;
                 Drag::Batten { idx }
@@ -1107,6 +1193,8 @@ impl App {
         }
 
         // ---- render ----
+        // Hinged flats follow anything just moved.
+        crate::joins::apply(self.state_mut());
         let mut opts = BuildOpts {
             show_beams: self.show_beams,
             plan_view: self.orbit.ortho,

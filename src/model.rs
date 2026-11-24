@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Doug Rumble
+// SPDX-License-Identifier: GPL-3.0-only
+
 //! Project data: venue, rigging, lights, set pieces and scene states.
 //!
 //! Coordinates (metres): X runs across the stage (+X = stage left = house right),
@@ -703,6 +706,22 @@ pub struct Piece {
     /// Library settings this piece is rebuilt from (None = fixed parts).
     #[serde(default)]
     pub template: Option<Template>,
+    /// Hinged to the edge of another flat: its position and turn then follow that flat.
+    #[serde(default)]
+    pub hinged_to: Option<HingeJoin>,
+}
+
+/// A flat joined to the edge of another flat by hinges (book flats, folding screens, a door
+/// flat hinged to a wall). The joined flat stands against that edge and folds about it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct HingeJoin {
+    /// Id of the flat it is hinged to.
+    pub to: u32,
+    /// Which edge of that flat, seen from the front: -1 = its left edge, +1 = its right edge.
+    pub side: i8,
+    /// Fold in degrees: 0 = straight on in line, positive = folds towards the audience,
+    /// negative = folds back (180 = folded shut, face to face).
+    pub angle: f32,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

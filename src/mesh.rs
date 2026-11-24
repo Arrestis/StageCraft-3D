@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Doug Rumble
+// SPDX-License-Identifier: GPL-3.0-only
+
 //! Primitive shapes in unit space (x, z in -0.5..0.5, y in 0..1), placed by a transform.
 
 use crate::math::*;

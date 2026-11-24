@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Doug Rumble
+// SPDX-License-Identifier: GPL-3.0-only
+
 //! Turns the project (venue + current scene state) into triangles, lines, lights and labels.
 
 use crate::math::*;
@@ -156,6 +159,31 @@ fn piece_geo(g: &mut Geo,p: &Piece, base: V3, rot: f32, obj: u32, highlight: boo
             scaled.rot_y(rot) + base
         };
         add_shape(g, part.shape, &xf, mat, obj);
+    }
+}
+
+/// The hinges where a flat is joined to another: a leaf screwed to each flat and a knuckle on
+/// the hinge line, spaced up the edge (2 on short flats, up to 4 on tall ones).
+#[allow(clippy::too_many_arguments)]
+fn hinge_hardware(g: &mut Geo, par: &Piece, pb: V3, prot: f32, ch: &Piece, cb: V3, crot: f32, j: &HingeJoin, obj: u32) {
+    let (pivot, attach, f) = crate::joins::hinge_points(par, ch, j);
+    let s = if j.side >= 0 { 1.0 } else { -1.0 };
+    let h = par.size[1].min(ch.size[1]);
+    if h < 0.3 {
+        return;
+    }
+    let n = if h < 1.6 { 2 } else if h < 3.2 { 3 } else { 4 };
+    let (lw, lh, lt) = (0.075, 0.13, 0.005);
+    let leaf_m = g.mat([184, 184, 192], 0.55, 0);
+    let pin_m = g.mat([126, 126, 134], 0.55, 0);
+    for k in 0..n {
+        let y = 0.18 + (h - 0.36 - lh) * k as f32 / (n - 1) as f32;
+        let on_par = pivot + v3(-s * lw * 0.5, y, f * lt * 0.5);
+        add_shape(g, Shape::Box, &|u: V3| pb + (on_par + v3(u.x * lw, u.y * lh, u.z * lt)).rot_y(prot), leaf_m, obj);
+        let on_ch = attach + v3(s * lw * 0.5, y, f * lt * 0.5);
+        add_shape(g, Shape::Box, &|u: V3| cb + (on_ch + v3(u.x * lw, u.y * lh, u.z * lt)).rot_y(crot), leaf_m, obj);
+        let pin = pivot + v3(0.0, y - 0.005, f * 0.01);
+        add_shape(g, Shape::Cylinder, &|u: V3| pb + (pin + v3(u.x * 0.02, u.y * (lh + 0.01), u.z * 0.02)).rot_y(prot), pin_m, obj);
     }
 }
 
@@ -959,6 +987,17 @@ pub fn build(pr: &Project, d: &Display, o: &BuildOpts) -> (Geo, Vec<Label>) {
             let top = base.y + p.size[1];
             g.line(base + v3(-p.size[0] * 0.4, p.size[1], 0.0), v3(base.x - p.size[0] * 0.4, top, base.z), [150, 150, 160, 200]);
         }
+    }
+    // Hinges between flats joined together.
+    for (ci, ch) in s.pieces.iter().enumerate() {
+        let Some(j) = &ch.hinged_to else { continue };
+        let Some(par) = s.pieces.iter().find(|q| q.id == j.to) else { continue };
+        if !ch.visible || !par.visible {
+            continue;
+        }
+        let (pb, prot) = piece_world(par, v, d, &s.battens);
+        let (cb, crot) = piece_world(ch, v, d, &s.battens);
+        hinge_hardware(&mut g, par, pb, prot, ch, cb, crot, j, OBJ_PIECE + ci as u32);
     }
     if let Some(dp) = &o.draft {
         let (base, rot) = piece_world(dp, v, d, &s.battens);

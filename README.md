@@ -1,8 +1,11 @@
 # Stagecraft 3D
 
+*by Doug Rumble*
+
 A simple desktop app for planning and previewing theatre sets in 3D. It's for directors,
 stage managers and set designers: pick a real venue, drop in furniture and scenery,
 fly bars in and out, light the scene and check sightlines before anything is built.
+Free and open-source software under the GNU GPL v3.
 
 ## Features
 
@@ -32,7 +35,13 @@ fly bars in and out, light the scene and check sightlines before anything is bui
   columns, ramps, stairs, hinged doors and lids, with exact sizes, position, rotation and material).
   Every library piece has its own settings (a door flat's door width, height, position, hinge
   side and swing; shelves, drawers, treads, gates...), and doors, lids, gates and drawers open
-  and shut with one click or the O key.
+  and shut with one click or the O key. Any flat can be switched between plain, door, double
+  doors, window and archway while keeping its size.
+- **Hinged flats** – join flats together with hinges, edge to edge: book flats, folding
+  screens, a door flat hinged to a wall. Fold them from in line to folded shut (towards the
+  audience or back); the group moves together and the hinges are drawn on the flats.
+- **Start-up screen** – the app's donkey picture (or your own logo or poster) with your theatre
+  company's name, set in File › Start-up screen.
 - **Easy controls** – Director, 3/4 Overview, Ground Plan, SL / SR Wing and Free Orbit cameras;
   click or outliner selection, drag, nudge, rotate in 15° or 1° steps, snap to grid, and
   warnings for pieces off the stage, in the sightlines, on the curtain line or too tall.
@@ -83,6 +92,12 @@ built-in 3D renderer.
 
 ## License
 
-Stagecraft 3D is free software under the [GNU General Public License v3](LICENSE).
+Copyright © 2026 Doug Rumble.
+
+Stagecraft 3D is free and open-source software: you can use it, share it and change it under
+the terms of the [GNU General Public License, version 3](LICENSE) (`GPL-3.0-only`), as
+published by the Free Software Foundation. It comes with no warranty. The app shows the same
+notice, and the full licence, in File › About Stagecraft 3D.
+
 The app icon is the project's own artwork. The folders in `vendor/` are two libraries (eframe,
 MIT/Apache-2.0; rfd, MIT) with a small Windows 7 fix, described in each folder.

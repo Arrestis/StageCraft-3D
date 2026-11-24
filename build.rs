@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Doug Rumble
+// SPDX-License-Identifier: GPL-3.0-only
+
 // Embeds the app icon and version details into the Windows .exe.
 fn main() {
     println!("cargo:rerun-if-changed=assets/icon.ico");

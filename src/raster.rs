@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Doug Rumble
+// SPDX-License-Identifier: GPL-3.0-only
+
 //! A small multi-threaded software renderer: depth-buffered triangles, deferred
 //! per-pixel stage lighting (spotlights with soft cones), additive light beams,
 //! depth-tested lines, edge outlines and an object-id buffer for picking.

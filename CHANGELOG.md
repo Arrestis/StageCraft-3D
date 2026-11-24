@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased – every piece adjustable, doors that open and shut
+## v0.5.0 – adjustable pieces, hinged flats, start-up screen
 
 - Every library piece now has its own settings in the Inspector instead of one overall stretch:
   a door flat sets flat width / height / thickness, door width, height and position, single or
@@ -13,6 +13,20 @@
 - One-click **Open / Shut** button (or the O key) for anything with doors, lids, gates or drawers.
 - Build Custom Piece: new Door leaf and Lid / trapdoor blocks, and any block can be hinged.
 - "Stretch overall" is still there for squashing or stretching a whole piece.
+- **Hinged flats**: hinge a new flat to either edge of a flat or wall, or hinge two existing
+  flats together, from the new *Hinges – join flats* section of the Inspector. A hinged flat
+  folds about the hinge line from in line (0°) to folded shut (180°), towards the audience or
+  back, with the Fold slider, quick buttons or Q / E. Dragging any flat moves the whole group.
+  The hinges are drawn on the flats and are saved with the project.
+- **Flat type**: switch any flat between plain, door, double doors, window and archway; its
+  width, height and thickness stay the same.
+- **Start-up screen**: the app's donkey picture large, or your own logo or poster (PNG or JPG),
+  with your theatre company's name, "Stagecraft 3D" and "by Doug Rumble". Set the company name,
+  picture and how long it shows in File › Start-up screen (kept on this computer).
+- **About and licence**: File › About shows the version, author, copyright and the full GNU
+  GPL v3 licence. The source files, Windows program details and Mac app now carry the
+  copyright notice too.
+
 ## v0.4.1 – venues from their own documents
 
 - **TAS Hoskins Centre** rebuilt from its technical specifications: 12 m x 7.65 m proscenium on a

@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Doug Rumble
+// SPDX-License-Identifier: GPL-3.0-only
+
 //! A calm dark theme with a warm stage-light accent.
 
 use egui::{Color32, Stroke};

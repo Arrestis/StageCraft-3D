@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Doug Rumble
+// SPDX-License-Identifier: GPL-3.0-only
+
 //! A sample production (two scenes) and quick lighting looks.
 
 use crate::library;

@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Doug Rumble
+// SPDX-License-Identifier: GPL-3.0-only
+
 //! Small 3D math helpers (vectors and 4x4 matrices, column-major).
 
 use std::ops::{Add, Div, Mul, Neg, Sub};

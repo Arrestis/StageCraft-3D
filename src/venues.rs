@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Doug Rumble
+// SPDX-License-Identifier: GPL-3.0-only
+
 //! Venue presets drawn from research, plus default rigging and lighting for a venue.
 
 use crate::model::*;

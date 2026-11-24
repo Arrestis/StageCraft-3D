@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Doug Rumble
+// SPDX-License-Identifier: GPL-3.0-only
+
 //! Collision and stage-bounds warnings for set pieces.
 
 use crate::math::*;
@@ -200,6 +203,11 @@ pub fn check(pr: &Project, d: &Display) -> Vec<Warning> {
             }
             let (qp, qb, qt) = foot[j];
             if bot >= qt - 0.02 || qb >= top - 0.02 {
+                continue;
+            }
+            // Flats hinged together touch along the hinge by design.
+            let hinged = |a: &Piece, b: &Piece| a.hinged_to.as_ref().map(|h| h.to == b.id).unwrap_or(false);
+            if hinged(p, q) || hinged(q, p) {
                 continue;
             }
             if sat_overlap(&pts, &qp) {

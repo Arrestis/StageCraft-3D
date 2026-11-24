@@ -1,3 +1,6 @@
+// Copyright (C) 2026 Doug Rumble
+// SPDX-License-Identifier: GPL-3.0-only
+
 //! Stagecraft 3D – plan and preview theatre sets in real venues.
 //!
 //! Run normally to open the app. `--screenshot <file.png>` opens the window without
@@ -9,6 +12,7 @@ mod app;
 mod builder;
 mod checks;
 mod inspector;
+mod joins;
 mod library;
 mod math;
 mod mesh;
@@ -17,6 +21,7 @@ mod panels;
 mod raster;
 mod sample;
 mod scene;
+mod startup;
 mod style;
 mod venues;
 
